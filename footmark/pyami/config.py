@@ -27,18 +27,17 @@ FootmarkConfigLocations = [FootmarkConfigPath]
 UserConfigPath = os.path.join(expanduser('~'), '.footmark')
 FootmarkConfigLocations.append(UserConfigPath)
 
-# If there's a BOTO_CONFIG variable set, we load ONLY
+# If there's a FOOTMARK_CONFIG variable set, we load ONLY
 # that variable
-if 'BOTO_CONFIG' in os.environ:
-    FootmarkConfigLocations = [expanduser(os.environ['BOTO_CONFIG'])]
+if 'FOOTMARK_CONFIG' in os.environ:
+    FootmarkConfigLocations = [expanduser(os.environ['FOOTMARK_CONFIG'])]
 
-# If there's a BOTO_PATH variable set, we use anything there
+# If there's a FOOTMARK_PATH variable set, we use anything there
 # as the current configuration locations, split with os.pathsep.
-elif 'BOTO_PATH' in os.environ:
+elif 'FOOTMARK_PATH' in os.environ:
     FootmarkConfigLocations = []
-    for path in os.environ['BOTO_PATH'].split(os.pathsep):
+    for path in os.environ['FOOTMARK_PATH'].split(os.pathsep):
         FootmarkConfigLocations.append(expanduser(path))
-
 
 class Config(object):
 
@@ -52,12 +51,6 @@ class Config(object):
                 self.readfp(fp)
             else:
                 self.read(FootmarkConfigLocations)
-            if "AWS_CREDENTIAL_FILE" in os.environ:
-                full_path = expanduser(os.environ['AWS_CREDENTIAL_FILE'])
-                try:
-                    self.load_credential_file(full_path)
-                except IOError:
-                    warnings.warn('Unable to load AWS_CREDENTIAL_FILE (%s)' % full_path)
 
     def __setstate__(self, state):
         # There's test that verify that (transitively) a Config
@@ -73,15 +66,6 @@ class Config(object):
 
     def has_option(self, *args, **kwargs):
         return self._parser.has_option(*args, **kwargs)
-
-    def load_credential_file(self, path):
-        """Load a credential file as is setup like the Java utilities"""
-        c_data = StringIO()
-        c_data.write("[Credentials]\n")
-        for line in open(path, "r").readlines():
-            c_data.write(line.replace("AWSAccessKeyId", "aws_access_key_id").replace("AWSSecretKey", "aws_secret_access_key"))
-        c_data.seek(0)
-        self.readfp(c_data)
 
     def load_from_path(self, path):
         file = open(path)

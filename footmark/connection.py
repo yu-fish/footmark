@@ -1,3 +1,7 @@
+#coding:utf-8
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
 """
 Handles basic connections to ACS
 """
@@ -73,89 +77,100 @@ class ACSQueryConnection(ACSAuthConnection):
 
     def make_request(self, action, params=None):
         conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region)
+        if not conn:
+            footmark.log.error('%s %s' % ('Null AcsClient ', conn))
+            raise self.FootmarkClientError('Null AcsClient ', conn)
         if action:
             module = importlib.import_module(self.product + '.' + action + 'Request')
             request = getattr(module, action + 'Request')()
             request.set_accept_format('json')
             if params and isinstance(params, dict):
                 for k,v in params.items():
-                    getattr(request, k)(v)
+                    if hasattr(request, k):
+                        getattr(request, k)(v)
         return conn.get_response(request)
 
     def build_list_params(self, params, items, label):
         params['set_%s' % label] = items
 
-    def parse_response(self, markers, response):
+    def parse_response(self, markers, response, connection):
         results = []
-        response = json.loads(response, 'UTF-8')
-        if markers[0] in response:
+        response = json.loads(response, encoding='UTF-8')
+        if markers and markers[0] in response:
             for value in response[markers[0]].itervalues():
                 if value is None or len(value)<1:
                     return results
                 for item in value:
-                    element = markers[1]
+                    element = markers[1](connection)
                     self.parse_dict(element, item)
                     results.append(element)
         return results
 
     def parse_dict(self, element, dict_data):
-        if isinstance(dict_data, dict):
-            for k,v in dict_data.items():
-                if isinstance(v, dict):
-                    value = {}
-                    for kk,vv in v.items():
-                        value[self.convert_name(kk)] = vv
-                    v = value
-                    self.parse_dict(element, v)
-                setattr(element, self.convert_name(k), v)
+        if not isinstance(dict_data, dict):
+            return
+
+        for k,v in dict_data.items():
+            if isinstance(v, dict):
+                value = {}
+                for kk,vv in v.items():
+                    value[self.convert_name(kk)] = vv
+                v = value
+                self.parse_dict(element, v)
+            setattr(element, self.convert_name(k), v)
 
     def convert_name(self, name):
-        if not name:
-            return None
-        new_name = ''
-        for ch in name:
-            if ch.isupper():
-                ch = '_' + ch.lower()
-            new_name += ch
-        if new_name.startswith('_'):
-            new_name = new_name[1:]
-        return new_name
+        if name:
+            new_name = ''
+            for ch in name:
+                if ch.isupper():
+                    ch = '_' + ch.lower()
+                new_name += ch
+            if new_name.startswith('_'):
+                new_name = new_name[1:]
+            return new_name
     # generics
 
-    def get_list(self, action, params, markers, parent=None):
-        if not parent:
-            parent = self
+    def get_list(self, action, params, markers):
         response = self.make_request(action, params)
+        print 'response:', response
         body = response[-1]
         footmark.log.debug(body)
-        print 'body:', body
         if not body:
             footmark.log.error('Null body %s' % body)
             raise self.ResponseError(response[0], body)
         elif response[0] in (200, 201):
-            return self.parse_response(markers, body)
+            return self.parse_response(markers, body, self)
         else:
             footmark.log.error('%s %s' % (response[0], body))
             raise self.ResponseError(response[0], body)
 
-    def get_object(self, action, params, cls, parent=None):
-        if not parent:
-            parent = self
+    def get_object(self, action, params, obj):
+        response = self.make_request(action, params)
+        print 'response:', response
+        body = response[-1]
+        footmark.log.debug(body)
+        if not body:
+            footmark.log.error('Null body %s' % body)
+            raise self.ResponseError(response[0], body)
+        elif response[0] in (200, 201):
+            return json.loads(body)['InstanceId']
+        else:
+            footmark.log.error('%s %s' % (response[0], body))
+            footmark.log.error('%s' % body)
+            raise self.ResponseError(response[0], body)
+
+    def get_status(self, action, params):
         response = self.make_request(action, params)
         body = response[-1]
         footmark.log.debug(body)
         if not body:
             footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response.status, response.reason, body)
-        elif response[0] == 200:
-            obj = cls(parent)
-            h = footmark.handler.XmlHandler(obj, parent)
-            if isinstance(body, six.text_type):
-                body = body.encode('utf-8')
-            xml.sax.parseString(body, h)
-            return obj
+            raise self.ResponseError(response[0], body)
+        elif response[0] in (200, 201):
+            return 'success'
         else:
-            footmark.log.error('%s %s' % (response.status, response.reason))
+            footmark.log.error('%s %s' % (response[0], body))
             footmark.log.error('%s' % body)
-            raise self.ResponseError(response.status, response.reason, body)
+            raise self.ResponseError(response[0], body)
 
