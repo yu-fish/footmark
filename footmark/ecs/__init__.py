@@ -31,7 +31,6 @@ def connect_to_region(region_id, **kw_params):
     :return: A connection to the given region, or None if an invalid region
              name is given
     """
-
     return ECSConnection(region=region_id, **kw_params)
 
     # if 'region' in kw_params and isinstance(kw_params['region'], RegionInfo)\

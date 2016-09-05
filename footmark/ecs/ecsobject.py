@@ -20,4 +20,4 @@ class TaggedECSObject(ECSObject):
     """
 
     def __init__(self, connection=None):
-        super(TaggedEC2Object, self).__init__(connection)
+        super(TaggedECSObject, self).__init__(connection)

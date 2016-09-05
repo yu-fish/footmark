@@ -2,7 +2,7 @@
 """
 Represents an ECS Instance
 """
-
+import json
 from footmark.ecs.ecsobject import *
 
 class Instance(TaggedECSObject):
@@ -12,39 +12,48 @@ class Instance(TaggedECSObject):
 
     def __init__(self, connection=None):
         super(Instance, self).__init__(connection)
-        # self.connection = connection
-
 
     def __repr__(self):
         return 'Instance:%s' % self.id
 
-    @property
-    def id(self):
-        return self.instance_id
+    def __getattr__(self, name):
+        if name == 'id':
+            return self.instance_id
+        if name == 'state':
+            return self.status
+        if name in ('private_ip', 'inner_ip', 'inner_ip_address'):
+            return self.inner_ip_address
+        if name in ('public_ip', 'assign_public_ip', 'ip_address'):
+            return self.public_ip_address
+        if name == 'vpc_private_ip':
+            return self.private_ip_address
+        if name in ('vpc_vswitch_id', 'vswitch_id', 'vpc_subnet_id', 'subnet_id'):
+            return self.v_switch_id
+        if name == 'eip' and self.eip_address:
+            return self.eip_address.get('ip_address', None)
+        raise AttributeError
 
-    @property
-    def state(self):
-        return self.status
-
-    @property
-    def vpc_id(self):
-        if self.vpc_attributes:
-            return self.vpc_id
-
-    @property
-    def vswitch_id(self):
-        return self.v_switch_id
-
-    @property
-    def private_ip(self):
-        return self.private_ip_address['IpAddress']
-
-    @property
-    def eip(self):
-        if self.eip_attributes:
-            return self.eip_attributes_attributes.eip_address
-
-
+    def __setattr__(self, name, value):
+        if name == 'id':
+            self.instance_id = value
+        if name == 'status':
+            value = value.lower()
+        if name == 'state':
+            self.status = value
+        if name in ('public_ip_address', 'inner_ip_address', 'private_ip_address'):
+            if isinstance(value, dict) and value['ip_address']:
+                value = value['ip_address'][0]
+        if name in ('private_ip', 'inner_ip'):
+            self.inner_ip_address = value
+        if name in ('public_ip', 'assign_public_ip', 'ip_address'):
+            self.public_ip_address = value
+        if name == 'vpc_private_ip':
+            self.private_ip_address = value
+        if name in ('vpc_vswitch_id', 'vswitch_id', 'vpc_subnet_id', 'subnet_id'):
+            self.v_switch_id = value
+        if name == 'eip' and self.eip_address:
+            self.eip_address['ip_address'] = value
+        super(TaggedECSObject, self).__setattr__(name, value)
 
     def _update(self, updated):
         self.__dict__.update(updated.__dict__)
@@ -70,13 +79,13 @@ class Instance(TaggedECSObject):
             raise ValueError('%s is not a valid Instance ID' % self.id)
         return self.state
 
-    def terminate(self):
+    def start(self):
         """
-        Terminate the instance
+        Start the instance.
         """
-        rs = self.connection.terminate_instances([self.id])
-        if len(rs) > 0:
-            self._update(rs[0])
+        rs = self.connection.start_instances([self.id])
+        # if len(rs) > 0:
+        #     self._update(rs[0])
 
     def stop(self, force=False):
         """
@@ -92,13 +101,22 @@ class Instance(TaggedECSObject):
         # if len(rs) > 0:
         #     self._update(rs[0])
 
-    def start(self):
+    def reboot(self, force=False):
         """
-        Start the instance.
+        Restart the instance.
+
+        :type force: bool
+        :param force: Forces the instance to stop
         """
-        rs = self.connection.start_instances([self.id])
+        return self.connection.reboot_instances([self.id], force)
+
+    def terminate(self, force=False):
+        """
+        Terminate the instance
+
+        :type force: bool
+        :param force: Forces the instance to terminate
+        """
+        rs = self.connection.terminate_instances([self.id], force)
         # if len(rs) > 0:
         #     self._update(rs[0])
-
-    def reboot(self, force=False):
-        return self.connection.reboot_instances([self.id], force)
