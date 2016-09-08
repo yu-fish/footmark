@@ -145,21 +145,6 @@ class ACSQueryConnection(ACSAuthConnection):
             footmark.log.error('%s %s' % (response[0], body))
             raise self.ResponseError(response[0], body)
 
-    def get_object(self, action, params, obj):
-        response = self.make_request(action, params)
-        print 'response:', response
-        body = response[-1]
-        footmark.log.debug(body)
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            return json.loads(body)['InstanceId']
-        else:
-            footmark.log.error('%s %s' % (response[0], body))
-            footmark.log.error('%s' % body)
-            raise self.ResponseError(response[0], body)
-
     def get_status(self, action, params):
         response = self.make_request(action, params)
         body = response[-1]

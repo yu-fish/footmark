@@ -12,6 +12,8 @@ class Instance(TaggedECSObject):
 
     def __init__(self, connection=None):
         super(Instance, self).__init__(connection)
+        self.tags = {}
+
 
     def __repr__(self):
         return 'Instance:%s' % self.id
@@ -45,7 +47,7 @@ class Instance(TaggedECSObject):
                 value = value['ip_address'][0]
         if name in ('private_ip', 'inner_ip'):
             self.inner_ip_address = value
-        if name in ('public_ip', 'assign_public_ip', 'ip_address'):
+        if name in ('public_ip', 'assign_public_ip'):
             self.public_ip_address = value
         if name == 'vpc_private_ip':
             self.private_ip_address = value
@@ -53,6 +55,11 @@ class Instance(TaggedECSObject):
             self.v_switch_id = value
         if name == 'eip' and self.eip_address:
             self.eip_address['ip_address'] = value
+        if name == 'tags' and value:
+            v = {}
+            for tag in value['tag']:
+                v[tag.get('TagKey')] = tag.get('TagValue', None)
+            value = v
         super(TaggedECSObject, self).__setattr__(name, value)
 
     def _update(self, updated):
