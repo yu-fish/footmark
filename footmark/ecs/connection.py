@@ -21,6 +21,7 @@ class ECSConnection(ACSQueryConnection):
     DefaultRegionName = u'杭州'.encode("UTF-8")
     ResponseError = ECSResponseError
 
+
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
                  region=None, sdk_version= None, security_token=None,):
         """
@@ -39,35 +40,20 @@ class ECSConnection(ACSQueryConnection):
                                             acs_secret_access_key,
                                             self.region, self.ECSSDK, security_token)
 
-    # def build_filter_params(self, params, filters):
-    #     if not isinstance(filters, dict):
-    #         filters = dict(filters)
-    #
-    #     i = 1
-    #     for name in filters:
-    #         acs_name = name
-    #         if acs_name.startswith('tag:'):
-    #             params['set_Tag%dKey' % i] = acs_name[4:]
-    #             params['set_Tag%dValue' % i] = filters[acs_name]
-    #             i += 1
-    #             continue
-    #         acs_name = ''.join(s.capitalize() for s in acs_name.split('_'))
-    #         params['set_' + acs_name] = filters[name]
-
     def build_filter_params(self, params, filters):
         if not isinstance(filters, dict):
             return
 
-        i = 1
+        flag = 1
         for key,value in filters.items():
             acs_key = key
             if acs_key.startswith('tag:'):
-                while(('set_Tag%dKey' % i) in params ):
-                    i += 1
-                if i<6:
-                    params['set_Tag%dKey' % i] = acs_key[4:]
-                    params['set_Tag%dValue' % i] = filters[acs_key]
-                i += 1
+                while(('set_Tag%dKey' % flag) in params ):
+                    flag += 1
+                if flag<6:
+                    params['set_Tag%dKey' % flag] = acs_key[4:]
+                    params['set_Tag%dValue' % flag] = filters[acs_key]
+                flag += 1
                 continue
             if key == 'group_id':
                 if not value.startswith('sg-') or len(value) != 12:
@@ -180,30 +166,6 @@ class ECSConnection(ACSQueryConnection):
 
         return results
 
-    def run_instances(self, **kwargs):
-        """
-
-        :rtype: Instance
-        :return: The :class:`footmark.ecs.instance` associated with
-                 the request for machines
-        """
-        params = {}
-        if len(kwargs)>0:
-            self.build_filter_params(params, kwargs)
-        instance_ids = []
-        try:
-            count = kwargs.get('count', None)
-            if count:
-                count = int(count)
-            else:
-                count = 1
-        except FootmarkClientError as e:
-            e.reason('count %s is not valid int' % kwargs['count'])
-        for i in range(0, count):
-            instance_ids.append(self.get_object('CreateInstance', params, 'InstanceId'))
-
-        return self.get_all_instances(instance_ids=instance_ids)
-
     def terminate_instances(self, instance_ids=None, force=False):
         """
         Terminate the instances specified
@@ -221,8 +183,6 @@ class ECSConnection(ACSQueryConnection):
         result = []
         if force:
             self.build_list_params(params, 'true', 'ForceStop')
-        if instance_ids:
-            self.build_list_params(params, instance_ids, 'InstanceId')
         if instance_ids:
             if isinstance(instance_ids, six.string_types):
                 instance_ids = [instance_ids]
