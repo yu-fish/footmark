@@ -35,12 +35,23 @@ def run_instances(region_id, **connect_args):
     for inst in instances:
         print inst.id
 
+def delete_instances(region_id, **connect_args):
+    conn = build_conn(region_id, **connect_args)
+    instance_ids = ["XXXXXXX"]
+    force = False
+    get_all_instances = conn.get_all_instances(instance_ids=instance_ids)
+    for inst in get_all_instances:
+        inst.terminate(force=force)
+
 def main():
     connect_args = dict(acs_access_key_id='XXXXXXXXXXXX',
                         acs_secret_access_key='XXXXXXXXXXXXXXXX')
     region_id = 'cn-shenzhen'
     # test start stop restart instance
     operate_instance(region_id, **connect_args)
+
+    # test delete instance
+    delete_instances(region_id, **connect_args)
 
     # test create instance
     # run_instances(region_id, **connect_args)
