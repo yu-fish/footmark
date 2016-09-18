@@ -88,6 +88,8 @@ class ACSQueryConnection(ACSAuthConnection):
                 for k,v in params.items():
                     if hasattr(request, k):
                         getattr(request, k)(v)
+                    else:
+                        request.add_query_param(k[4:], v)
         return conn.get_response(request)
 
     def build_list_params(self, params, items, label):
@@ -133,7 +135,7 @@ class ACSQueryConnection(ACSAuthConnection):
 
     def get_list(self, action, params, markers):
         response = self.make_request(action, params)
-        print 'response:', response
+        # print 'response:', response
         body = response[-1]
         footmark.log.debug(body)
         if not body:

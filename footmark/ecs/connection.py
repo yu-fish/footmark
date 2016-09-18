@@ -78,11 +78,11 @@ class ECSConnection(ACSQueryConnection):
         Retrieve all the instance associated with your account.
 
         :rtype: list
-        :return: A list of  :class:`footmark.ecs.instance.Reservation`
+        :return: A list of  :class:`footmark.ecs.instance`
 
         """
         warnings.warn(('The current get_all_instances implementation will be '
-                       'replaced with get_all_reservations.'),
+                       'replaced with get_all_instances.'),
                       PendingDeprecationWarning)
 
         params = {}
@@ -182,7 +182,7 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         result = []
         if force:
-            self.build_list_params(params, 'true', 'ForceStop')
+            self.build_list_params(params, 'true', 'Force')
         if instance_ids:
             if isinstance(instance_ids, six.string_types):
                 instance_ids = [instance_ids]

@@ -25,7 +25,7 @@ class Instance(TaggedECSObject):
             return self.status
         if name in ('private_ip', 'inner_ip', 'inner_ip_address'):
             return self.inner_ip_address
-        if name in ('public_ip', 'assign_public_ip', 'ip_address'):
+        if name in ('public_ip', 'assign_public_ip'):
             return self.public_ip_address
         if name == 'vpc_private_ip':
             return self.private_ip_address
@@ -33,6 +33,8 @@ class Instance(TaggedECSObject):
             return self.v_switch_id
         if name == 'eip' and self.eip_address:
             return self.eip_address.get('ip_address', None)
+        if name in ('group_id', 'security_group_id'):
+            return self.security_group_id
         raise AttributeError
 
     def __setattr__(self, name, value):
@@ -55,6 +57,9 @@ class Instance(TaggedECSObject):
             self.v_switch_id = value
         if name == 'eip' and self.eip_address:
             self.eip_address['ip_address'] = value
+        if name in ('group_id', 'security_group_id'):
+            if isinstance(value, list) and value:
+                value = value[0]
         if name == 'tags' and value:
             v = {}
             for tag in value['tag']:
