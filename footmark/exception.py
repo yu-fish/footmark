@@ -1,18 +1,19 @@
-
 """
 Exception classes - Subclassing allows you to check for specific errors
 """
 
-import footmark
-
 import json
 
+import footmark
+
 StandardError = Exception
+
 
 class FootmarkClientError(StandardError):
     """
     General Footmark Client error (error accessing AWS)
     """
+
     def __init__(self, reason, *args):
         super(FootmarkClientError, self).__init__(reason, *args)
         self.reason = reason
@@ -22,6 +23,7 @@ class FootmarkClientError(StandardError):
 
     def __str__(self):
         return 'FootmarkClientError: %s' % self.reason
+
 
 class FootmarkServerError(StandardError):
     def __init__(self, status, body=None, *args):
@@ -81,12 +83,15 @@ class FootmarkServerError(StandardError):
         return '%s: %s %s\n%s' % (self.__class__.__name__,
                                   self.status, self.message, self.body)
 
+
 class ECSResponseError(FootmarkServerError):
     """
     Error in response from ECS.
     """
+
     def __init__(self, status, body=None):
         super(ECSResponseError, self).__init__(status, body)
+
 
 class JSONResponseError(FootmarkServerError):
     """
@@ -101,6 +106,7 @@ class JSONResponseError(FootmarkServerError):
     :ivar error_code: A short string that identifies the AWS error
         (e.g. ConditionalCheckFailedException)
     """
+
     def __init__(self, status, reason, body=None, *args):
         self.status = status
         self.body = body
@@ -109,5 +115,3 @@ class JSONResponseError(FootmarkServerError):
             self.error_code = self.body.get('__type', None)
             if self.error_code:
                 self.error_code = self.error_code.split('#')[-1]
-
-

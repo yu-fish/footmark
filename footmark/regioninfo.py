@@ -1,8 +1,7 @@
-
+import json
 import os
 
 import footmark
-import json
 from footmark.exception import FootmarkClientError
 
 

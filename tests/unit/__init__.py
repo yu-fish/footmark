@@ -1,5 +1,5 @@
-
 from tests.compat import mock, unittest
+
 
 class ACSMockServiceTestCase(unittest.TestCase):
     """Base class for mocking acs services."""
@@ -29,11 +29,13 @@ class ACSMockServiceTestCase(unittest.TestCase):
             body = self.default_body()
         if header is None:
             header = [('content-length', '1343'),
-             ('access-control-allow-headers', 'X-Requested-With, X-Sequence, _aop_secret, _aop_signature'),
-             ('access-control-max-age', '172800'), ('vary', 'Accept-Encoding, Accept-Encoding'), ('server', 'Tengine'),
-             ('connection', 'close'), ('date', 'Mon, 12 Sep 2016 08:30:56 GMT'), ('access-control-allow-origin', '*'),
-             ('access-control-allow-methods', 'POST, GET, OPTIONS'),
-             ('content-type', 'application/json; charset=UTF-8')]
+                      ('access-control-allow-headers', 'X-Requested-With, X-Sequence, _aop_secret, _aop_signature'),
+                      ('access-control-max-age', '172800'), ('vary', 'Accept-Encoding, Accept-Encoding'),
+                      ('server', 'Tengine'),
+                      ('connection', 'close'), ('date', 'Mon, 12 Sep 2016 08:30:56 GMT'),
+                      ('access-control-allow-origin', '*'),
+                      ('access-control-allow-methods', 'POST, GET, OPTIONS'),
+                      ('content-type', 'application/json; charset=UTF-8')]
 
         response = [status_code, header, body]
         return response

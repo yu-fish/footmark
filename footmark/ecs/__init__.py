@@ -4,6 +4,7 @@ This module provides an interface to the Elastic Compute Service (ECS) service f
 from footmark.ecs.connection import ECSConnection
 from footmark.regioninfo import get_regions
 
+
 def regions(**kw_params):
     """
     Get all available regions for the ECS service.
