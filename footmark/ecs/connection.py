@@ -5,25 +5,23 @@ Represents a connection to the ECS service.
 
 import warnings
 
-from footmark.exception import FootmarkClientError
+import six
+
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
 from footmark.exception import ECSResponseError
-import six
+
 
 class ECSConnection(ACSQueryConnection):
-
-
     # SDKVersion = footmark.config.get('Footmark', 'ecs_version', '2014-05-26')
     SDKVersion = '2014-05-26'
     DefaultRegionId = 'cn-hangzhou'
     DefaultRegionName = u'杭州'.encode("UTF-8")
     ResponseError = ECSResponseError
 
-
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, sdk_version= None, security_token=None,):
+                 region=None, sdk_version=None, security_token=None, ):
         """
         Init method to create a new connection to ECS.
         """
@@ -34,7 +32,7 @@ class ECSConnection(ACSQueryConnection):
         if sdk_version:
             self.SDKVersion = sdk_version
 
-        self.ECSSDK = 'aliyunsdkecs.request.v' + self.SDKVersion.replace('-','')
+        self.ECSSDK = 'aliyunsdkecs.request.v' + self.SDKVersion.replace('-', '')
 
         super(ECSConnection, self).__init__(acs_access_key_id,
                                             acs_secret_access_key,
@@ -45,12 +43,12 @@ class ECSConnection(ACSQueryConnection):
             return
 
         flag = 1
-        for key,value in filters.items():
+        for key, value in filters.items():
             acs_key = key
             if acs_key.startswith('tag:'):
-                while(('set_Tag%dKey' % flag) in params ):
+                while (('set_Tag%dKey' % flag) in params):
                     flag += 1
-                if flag<6:
+                if flag < 6:
                     params['set_Tag%dKey' % flag] = acs_key[4:]
                     params['set_Tag%dValue' % flag] = filters[acs_key]
                 flag += 1

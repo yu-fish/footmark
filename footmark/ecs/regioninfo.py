@@ -10,4 +10,4 @@ class ECSRegionInfo(RegionInfo):
                  connection_cls=None):
         from footmark.ecs.connection import ECSConnection
         super(ECSRegionInfo, self).__init__(connection, name, id,
-                            ECSConnection)
+                                            ECSConnection)

@@ -1,9 +1,8 @@
-
 """
 Represents an ECS Instance
 """
-import json
 from footmark.ecs.ecsobject import *
+
 
 class Instance(TaggedECSObject):
     """
@@ -13,7 +12,6 @@ class Instance(TaggedECSObject):
     def __init__(self, connection=None):
         super(Instance, self).__init__(connection)
         self.tags = {}
-
 
     def __repr__(self):
         return 'Instance:%s' % self.id

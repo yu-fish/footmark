@@ -1,7 +1,10 @@
 import footmark
 import footmark.ecs
+
+
 def build_conn(region_id, **connect_args):
     return footmark.ecs.connect_to_region(region_id, **connect_args)
+
 
 def operate_instance(region_id, **connect_args):
     conn = build_conn(region_id, **connect_args)
@@ -21,6 +24,7 @@ def operate_instance(region_id, **connect_args):
             inst.stop()
         print 'state:', inst.state
 
+
 def run_instances(region_id, **connect_args):
     conn = build_conn(region_id, **connect_args)
 
@@ -35,6 +39,7 @@ def run_instances(region_id, **connect_args):
     for inst in instances:
         print inst.id
 
+
 def delete_instances(region_id, **connect_args):
     conn = build_conn(region_id, **connect_args)
     instance_ids = ["XXXXXXXXX"]
@@ -42,6 +47,7 @@ def delete_instances(region_id, **connect_args):
     get_all_instances = conn.get_all_instances(instance_ids=instance_ids)
     for inst in get_all_instances:
         inst.terminate(force=force)
+
 
 def main():
     connect_args = dict(acs_access_key_id='XXXXXXXXXXXX',
@@ -55,5 +61,6 @@ def main():
 
     # test create instance
     # run_instances(region_id, **connect_args)
+
 
 main()

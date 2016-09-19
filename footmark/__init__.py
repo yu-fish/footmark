@@ -1,11 +1,10 @@
-
 #
-from footmark.pyami.config import Config, FootmarkConfigLocations
 import datetime
-import os
 import logging
 import logging.config
+import os
 
+from footmark.pyami.config import Config, FootmarkConfigLocations
 
 __version__ = '2.42.0'
 Version = __version__  # for backware compatibility
@@ -27,11 +26,13 @@ class NullHandler(logging.Handler):
     def emit(self, record):
         pass
 
+
 log = logging.getLogger('footmark')
 perflog = logging.getLogger('footmark.perf')
 log.addHandler(NullHandler())
 perflog.addHandler(NullHandler())
 init_logging()
+
 
 # convenience function to set logging to a particular file
 

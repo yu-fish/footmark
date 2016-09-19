@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
+from footmark.ecs.connection import ECSConnection
 from tests.compat import unittest
 from tests.unit import ACSMockServiceTestCase
-
-from footmark.ecs.connection import ECSConnection
 
 DESCRIBE_INSTANCE = '''
 {
@@ -82,11 +81,12 @@ MANAGE_INSTANCE = '''
 
 class TestDescribeInstances(ACSMockServiceTestCase):
     connection_class = ECSConnection
+
     def default_body(self):
         return DESCRIBE_INSTANCE
 
     def test_instance_attribute(self):
-        self.set_http_response(status_code=200,body=DESCRIBE_INSTANCE)
+        self.set_http_response(status_code=200, body=DESCRIBE_INSTANCE)
         filters = {}
         instance_ids = ["i-94dehop6n"]
         tag_key = 'xz_test'
@@ -98,7 +98,7 @@ class TestDescribeInstances(ACSMockServiceTestCase):
         self.assertEqual(instance.id, 'i-94dehop6n')
         self.assertEqual(instance.group_id, 'sg-94kd0cyg0')
         self.assertEqual(instance.public_ip, '120.25.13.106')
-        self.assertEqual(instance.tags, {"xz_test":"1.20", "xz_test_2":"1.20"})
+        self.assertEqual(instance.tags, {"xz_test": "1.20", "xz_test_2": "1.20"})
         self.assertFalse(instance.io_optimized)
         self.assertEqual(instance.status, 'running')
         self.assertEqual(instance.image_id, 'centos6u5_64_40G_cloudinit_20160427.raw')
@@ -146,6 +146,7 @@ class TestManageInstances(ACSMockServiceTestCase):
         result = self.service_connection.terminate_instances(instance_ids=self.instance_ids, force=True)
         self.assertEqual(len(result), len(self.instance_ids))
         self.assertIn(result[0], self.instance_ids)
+
 
 if __name__ == '__main__':
     unittest.main()
