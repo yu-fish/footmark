@@ -88,6 +88,8 @@ class ACSQueryConnection(ACSAuthConnection):
                 for k,v in params.items():
                     if hasattr(request, k):
                         getattr(request, k)(v)
+                    else:
+                        request.add_query_param(k[4:], v)
         return conn.get_response(request)
 
     def build_list_params(self, params, items, label):
@@ -133,7 +135,7 @@ class ACSQueryConnection(ACSAuthConnection):
 
     def get_list(self, action, params, markers):
         response = self.make_request(action, params)
-        print 'response:', response
+        # print 'response:', response
         body = response[-1]
         footmark.log.debug(body)
         if not body:
@@ -143,21 +145,6 @@ class ACSQueryConnection(ACSAuthConnection):
             return self.parse_response(markers, body, self)
         else:
             footmark.log.error('%s %s' % (response[0], body))
-            raise self.ResponseError(response[0], body)
-
-    def get_object(self, action, params, obj):
-        response = self.make_request(action, params)
-        print 'response:', response
-        body = response[-1]
-        footmark.log.debug(body)
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            return json.loads(body)['InstanceId']
-        else:
-            footmark.log.error('%s %s' % (response[0], body))
-            footmark.log.error('%s' % body)
             raise self.ResponseError(response[0], body)
 
     def get_status(self, action, params):
