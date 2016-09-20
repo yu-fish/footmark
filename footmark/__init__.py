@@ -6,7 +6,7 @@ import os
 
 from footmark.pyami.config import Config, FootmarkConfigLocations
 
-__version__ = '2.42.0'
+__version__ = '1.0.5'
 Version = __version__  # for backware compatibility
 
 datetime.datetime.strptime('', '')
