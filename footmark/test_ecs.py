@@ -10,19 +10,19 @@ def operate_instance(region_id, **connect_args):
     conn = build_conn(region_id, **connect_args)
 
     filters = {}
-    instance_ids = ["XXXXXXX"]
-    tag_key = 'xz_test'
-    tag_value = '1.20'
-    filters['tag:' + tag_key] = tag_value
+    instance_ids = ["i-280k0cyh0"]
+    # tag_key = 'xz_test'
+    # tag_value = '1.20'
+    # filters['tag:' + tag_key] = tag_value
 
     get_all_instances = conn.get_all_instances(instance_ids=instance_ids, filters=filters)
-    for inst in get_all_instances:
-        print 'state:', inst.state
-        if inst.state == 'stopped':
-            inst.start()
-        if inst.status == 'running':
-            inst.stop()
-        print 'state:', inst.state
+    # for inst in get_all_instances:
+    #     print 'state:', inst.state
+    #     if inst.state == 'stopped':
+    #         inst.start()
+    #     if inst.status == 'running':
+    #         inst.stop()
+    #     print 'state:', inst.state
 
 
 def run_instances(region_id, **connect_args):
@@ -50,14 +50,14 @@ def delete_instances(region_id, **connect_args):
 
 
 def main():
-    connect_args = dict(acs_access_key_id='XXXXXXXXXXXX',
-                        acs_secret_access_key='XXXXXXXXXXXXXXXXXX')
-    region_id = 'cn-shenzhen'
+    connect_args = dict(acs_access_key_id='Q1QzBSnuozXv7y98',
+                        acs_secret_access_key='4g4QQ6cBtyN3D7DjghtHOKm8ygRkZD')
+    region_id = 'cn-qingdao'
     # test start stop restart instance
     operate_instance(region_id, **connect_args)
 
     # test delete instance
-    delete_instances(region_id, **connect_args)
+    # delete_instances(region_id, **connect_args)
 
     # test create instance
     # run_instances(region_id, **connect_args)
