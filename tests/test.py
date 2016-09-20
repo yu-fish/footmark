@@ -5,6 +5,7 @@ import os
 import sys
 from nose.core import run
 from nose_htmloutput import HtmlOutput
+import time
 
 
 def main():
@@ -18,10 +19,11 @@ def main():
                         "e.g -t ecs -t oss")
     known_args, remaining_args = parser.parse_known_args()
     attribute_args = []
+    filename = os.path.dirname(os.path.abspath(__file__)) + "/results/" + time.strftime('%Y%m%d%H%M%S', time.localtime(time.time())) + ".html"
     if not attribute_args:
         # If the user did not specify any filtering criteria, we at least
         # will filter out any test tagged 'notdefault'.
-        attribute_args = ['-v','--with-html', '--html-file=result.html']
+        attribute_args = ['-v','--with-html', '--html-file='+filename]
 
     # Set default tests used by e.g. tox. For Py2 this means all unit
     # tests, while for Py3 it's just whitelisted ones.
