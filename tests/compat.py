@@ -1,8 +1,4 @@
 # Use unittest2 for older versions of Python
-# import unittest2
-# from unittest import mock
-# import sys
-# sys.path.append('/Library/Python/2.7/site-packages')
 try:
     import unittest2 as unittest
 except ImportError:
