@@ -1,8 +1,14 @@
+#!/usr/bin/env python
 # Always prefer setuptools over distutils
 from codecs import open
 from os import path
 
-from setuptools import setup, find_packages
+try:
+    from setuptools import setup
+    extra = dict(test_suite="tests.test.suite", include_package_data=True)
+except ImportError:
+    from distutils.core import setup
+    extra = {}
 
 PACKAGE = "footmark"
 NAME = "footmark"
@@ -55,12 +61,11 @@ setup(
         'License :: OSI Approved :: MIT License',
 
         # Specify the Python versions you support here. In particular, ensure
-        # that you indicate whether you support Python 2, Python 3 or both.
+        # that you indicate whether you support Python 2.
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
     ],
-
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
     packages=["footmark", "footmark.ecs", "footmark.pyami"],
