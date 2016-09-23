@@ -74,5 +74,5 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['aliyun-python-sdk-ecs>=2.1.0'],
+    install_requires=['aliyun-python-sdk-ecs>=2.1.0', 'importlib'],
 )
