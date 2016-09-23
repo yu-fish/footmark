@@ -1,4 +1,3 @@
-
 from tests.compat import mock, unittest
 
 

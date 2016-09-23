@@ -2,6 +2,7 @@
 import logging
 import logging.config
 import os
+
 from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
 __version__ = '1.0.6'
@@ -18,8 +19,10 @@ def init_logging():
     except:
         pass
 
+
 init_logging()
 log = logging.getLogger('footmark')
+
 
 def connect_ecs(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
     """

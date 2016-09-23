@@ -4,7 +4,6 @@
 from footmark.ecs.connection import ECSConnection
 from tests.unit import ACSMockServiceTestCase
 
-
 DESCRIBE_INSTANCE = '''
 {
   "Instances": {

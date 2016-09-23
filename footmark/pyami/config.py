@@ -54,7 +54,7 @@ format=%(asctime)s [%(levelname)s] %(filename)s, %(funcName)s[%(lineno)d]: %(mes
 LoggingDict = '/var/log/footmark/'
 # LoggingDict = './'
 DefaultLoggingConfig = {
-    'version':1,
+    'version': 1,
     'formatters': {
         'default': {
             'format': '%(asctime)s [%(levelname)s] %(filename)s, %(funcName)s[%(lineno)d]: %(message)s'
@@ -71,7 +71,7 @@ DefaultLoggingConfig = {
             'class': 'logging.handlers.TimedRotatingFileHandler',
             'formatter': 'default',
             'level': 'DEBUG',
-            'filename': LoggingDict+'footmark.log',
+            'filename': LoggingDict + 'footmark.log',
             'when': 'D',
             'interval': 1,
             'backupCount': 7
@@ -84,6 +84,7 @@ DefaultLoggingConfig = {
         }
     }
 }
+
 
 class Config(object):
     def __init__(self):
@@ -108,4 +109,3 @@ class Config(object):
         file_pb = open(config_file, 'wb')
         file_pb.write(logging_config)
         file_pb.close()
-

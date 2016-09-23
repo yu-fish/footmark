@@ -14,8 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-t', '--service-tests', action="append", default=[],
                         help="Run tests for a given service.  This will "
-                        "run any test tagged with the specified value, "
-                        "e.g -t test_instance_attribute -t test_manage_instances")
+                             "run any test tagged with the specified value, "
+                             "e.g -t test_instance_attribute -t test_manage_instances")
     known_args, remaining_args = parser.parse_known_args()
     attribute_args = []
     for service_attribute in known_args.service_tests:
@@ -42,6 +42,7 @@ def main():
         return 0
     else:
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

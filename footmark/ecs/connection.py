@@ -9,9 +9,9 @@ import six
 
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.instance import Instance
-from footmark.ecs.volume import Disk
-from footmark.ecs.securitygroup import SecurityGroup
 from footmark.ecs.regioninfo import RegionInfo
+from footmark.ecs.securitygroup import SecurityGroup
+from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError
 
 
