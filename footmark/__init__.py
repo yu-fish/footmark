@@ -1,67 +1,27 @@
 #
-import datetime
 import logging
 import logging.config
 import os
 
-from footmark.pyami.config import Config, FootmarkConfigLocations
+from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
-__version__ = '2.42.0'
+__version__ = '1.0.6'
 Version = __version__  # for backware compatibility
-
-datetime.datetime.strptime('', '')
-
-config = Config()
 
 
 def init_logging():
-    for file in FootmarkConfigLocations:
+    try:
+        Config().init_config()
         try:
-            logging.config.fileConfig(os.path.expanduser(file))
+            logging.config.fileConfig(os.path.expanduser(FootmarkLoggingConfig))
         except:
-            pass
-
-
-class NullHandler(logging.Handler):
-    def emit(self, record):
+            logging.config.dictConfig(DefaultLoggingConfig)
+    except:
         pass
 
 
-log = logging.getLogger('footmark')
-perflog = logging.getLogger('footmark.perf')
-log.addHandler(NullHandler())
-perflog.addHandler(NullHandler())
 init_logging()
-
-
-# convenience function to set logging to a particular file
-
-def set_file_logger(name, filepath, level=logging.INFO, format_string=None):
-    global log
-    if not format_string:
-        format_string = "%(asctime)s %(name)s [%(levelname)s]:%(message)s"
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    fh = logging.FileHandler(filepath)
-    fh.setLevel(level)
-    formatter = logging.Formatter(format_string)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    log = logger
-
-
-def set_stream_logger(name, level=logging.DEBUG, format_string=None):
-    global log
-    if not format_string:
-        format_string = "%(asctime)s %(name)s [%(levelname)s]:%(message)s"
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    fh = logging.StreamHandler()
-    fh.setLevel(level)
-    formatter = logging.Formatter(format_string)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
-    log = logger
+log = logging.getLogger('footmark')
 
 
 def connect_ecs(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):

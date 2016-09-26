@@ -10,6 +10,8 @@ import six
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
+from footmark.ecs.securitygroup import SecurityGroup
+from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError
 
 
@@ -90,7 +92,21 @@ class ECSConnection(ACSQueryConnection):
             self.build_filter_params(params, filters)
         if max_results is not None:
             params['MaxResults'] = max_results
-        return self.get_list('DescribeInstances', params, ['Instances', Instance])
+        instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
+        for inst in instances:
+            filters = {}
+            filters['instance_id'] = inst.id
+            volumes = self.get_all_volumes(filters=filters)
+            block_device_mapping = {}
+            for vol in volumes:
+                block_device_mapping[vol.id] = vol
+            setattr(inst, 'block_device_mapping', block_device_mapping)
+            filters = {}
+            filters['security_group_id'] = inst.security_group_id
+            security_groups = self.get_all_security_groups(filters=filters)
+            setattr(inst, 'security_groups', security_groups)
+
+        return instances
 
     def start_instances(self, instance_ids=None):
         """
@@ -189,3 +205,63 @@ class ECSConnection(ACSQueryConnection):
                 if self.get_status('DeleteInstance', params):
                     result.append(instance_id)
         return result
+
+    def get_all_volumes(self, volume_ids=None, filters=None):
+        """
+        Get all Volumes associated with the current credentials.
+
+        :type volume_ids: list
+        :param volume_ids: Optional list of volume ids.  If this list
+                           is present, only the volumes associated with
+                           these volume ids will be returned.
+
+        :type filters: dict
+        :param filters: Optional filters that can be used to limit
+                        the results returned.  Filters are provided
+                        in the form of a dictionary consisting of
+                        filter names as the key and filter values
+                        as the value.  The set of allowable filter
+                        names/values is dependent on the request
+                        being performed.  Check the ECS API guide
+                        for details.
+
+        :type dry_run: bool
+        :param dry_run: Set to True if the operation should not actually run.
+
+        :rtype: list of :class:`boto.ec2.volume.Volume`
+        :return: The requested Volume objects
+        """
+        params = {}
+        if volume_ids:
+            self.build_list_params(params, volume_ids, 'DiskIds')
+        if filters:
+            self.build_filter_params(params, filters)
+        return self.get_list('DescribeDisks', params, ['Disks', Disk])
+
+    def get_all_security_groups(self, group_ids=None, filters=None):
+        """
+        Get all security groups associated with your account in a region.
+
+        :type group_ids: list
+        :param group_ids: A list of IDs of security groups to retrieve for
+                          security groups within a VPC.
+
+        :type filters: dict
+        :param filters: Optional filters that can be used to limit
+                        the results returned.  Filters are provided
+                        in the form of a dictionary consisting of
+                        filter names as the key and filter values
+                        as the value.  The set of allowable filter
+                        names/values is dependent on the request
+                        being performed.  Check the EC2 API guide
+                        for details.
+
+        :rtype: list
+        :return: A list of :class:`boto.ec2.securitygroup.SecurityGroup`
+        """
+        params = {}
+        if group_ids:
+            self.build_list_params(params, group_ids, 'SecurityGroupId')
+        if filters:
+            self.build_filter_params(params, filters)
+        return self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])

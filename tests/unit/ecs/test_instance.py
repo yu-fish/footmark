@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-
+# import sys
+# sys.path.append("../../..")
 from footmark.ecs.connection import ECSConnection
-from tests.compat import unittest
 from tests.unit import ACSMockServiceTestCase
 
 DESCRIBE_INSTANCE = '''
@@ -96,6 +96,7 @@ class TestDescribeInstances(ACSMockServiceTestCase):
         self.assertEqual(len(instances), 1)
         instance = instances[0]
         self.assertEqual(instance.id, 'i-94dehop6n')
+        print 'group_id:', instance.group_id
         self.assertEqual(instance.group_id, 'sg-94kd0cyg0')
         self.assertEqual(instance.public_ip, '120.25.13.106')
         self.assertEqual(instance.tags, {"xz_test": "1.20", "xz_test_2": "1.20"})
@@ -147,6 +148,6 @@ class TestManageInstances(ACSMockServiceTestCase):
         self.assertEqual(len(result), len(self.instance_ids))
         self.assertIn(result[0], self.instance_ids)
 
-
-if __name__ == '__main__':
-    unittest.main()
+#
+# if __name__ == '__main__':
+#     unittest.main()
