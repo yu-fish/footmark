@@ -158,7 +158,7 @@ class ACSQueryConnection(ACSAuthConnection):
             raise self.ResponseError(response[0], body)
         elif response[0] in (200, 201):
             footmark.log.info('status= %s ; body= %s' % (response[0], body))
-            #return 'success'
+            # return 'success'
             # C2C : Commented returning success string. Now conditionaly sending json 
             # response in when action is create instance  
             if action == 'CreateInstance':
