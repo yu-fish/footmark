@@ -267,8 +267,11 @@ class ECSConnection(ACSQueryConnection):
         return self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
     
     # C2C : Method added to create an instance
-    def create_instance(self, region_id, image_id, instance_type, group_id, zone_id=None, instance_name=None, description=None, internet_data=None, host_name=None, password=None, io_optimized=None, system_disk=None,
-                        volumes=None, vswitch_id=None, instance_tags=None, allocate_public_ip=None, bind_eip=None, count=None):
+    def create_instance(self, region_id, image_id, instance_type, group_id, zone_id=None,
+                        instance_name=None, description=None, internet_data=None, host_name=None,
+                        password=None, io_optimized=None, system_disk=None, volumes=None,
+                        vswitch_id=None, instance_tags=None, allocate_public_ip=None,
+                        bind_eip=None, count=None):
         """
         create an instance in ecs
 
@@ -276,48 +279,65 @@ class ECSConnection(ACSQueryConnection):
         :param region: The instance’s Region ID
 
         :type image_id: dict
-        :param image_id: ID of an image file, indicating an image selected when an instance is started
+        :param image_id: ID of an image file, indicating an image selected
+            when an instance is started
 
         :type instance_type: dict
         :param instance_type: Type of the instance
 
         :type group_id: dict
-        :param group_id: ID of the security group to which a newly created instance belongs
+        :param group_id: ID of the security group to which a newly created
+            instance belongs
 
         :type zone_id: dict
-        :param zone_id: ID of a zone to which an instance belongs. If it is null, a zone is selected by the system
+        :param zone_id: ID of a zone to which an instance belongs. If it is
+            null, a zone is selected by the system
 
         :type instance_name: dict
-        :param instance_name: Display name of the instance, which is a string of 2 to 128 Chinese or English characters. 
-                       It must begin with an uppercase/lowercase letter or a Chinese character and can contain numerals, “.”, “_“, or “-“. 
+        :param instance_name: Display name of the instance, which is a string
+            of 2 to 128 Chinese or English characters. It must begin with an
+            uppercase/lowercase letter or a Chinese character and can contain
+            numerals, “.”, “_“, or “-“. 
 
         :type description: dict
-        :param description: Description of the instance, which is a string of 2 to 256 characters. 
+        :param description: Description of the instance, which is a string of
+            2 to 256 characters. 
 
         :type internet_data: list
-        :param internet_data: It includes Internet charge type which can be PayByTraffic or PayByBandwidth, max_bandwidth_in and max_bandwidth_out
+        :param internet_data: It includes Internet charge type which can be
+            PayByTraffic or PayByBandwidth, max_bandwidth_in and max_bandwidth_out
 
         :type host_name: dict
-        :param host_name: Host name of the ECS, which is a string of at least two characters. “hostname” cannot start or end with “.” or “-“.
-                   In addition, two or more consecutive “.” or “-“ symbols are not allowed.
+        :param host_name: Host name of the ECS, which is a string of at least
+            two characters. “hostname” cannot start or end with “.” or “-“.
+            In addition, two or more consecutive “.” or “-“ symbols are not
+            allowed.
 
         :type password: dict
-        :param password: Password to an instance is a string of 8 to 30 characters
+        :param password: Password to an instance is a string of 8 to 30
+            characters
 
         :type io_optimized: dict
-        :param io_optimized: values are (1) none: none I/O Optimized (2) optimized: I/O Optimized
+        :param io_optimized: values are (1) none: none I/O Optimized 
+            (2) optimized: I/O Optimized
 
         :type system_disk: dict
-        :param system_disk: It includes disk_category, disk_size, disk_name and disk_description   
+        :param system_disk: It includes disk_category, disk_size,
+            disk_name and disk_description   
 
         :type volumes: list
-        :param volumes: It includes device_category, device_size, device_name, device_description, delete_on_termination and snapshot
+        :param volumes: It includes device_category, device_size,
+            device_name, device_description, delete_on_termination
+            and snapshot
 
         :type vswitch_id: dict
-        :param vswitch_id: When launching an instance in VPC, the virtual switch ID must be specified
+        :param vswitch_id: When launching an instance in VPC, the
+            virtual switch ID must be specified
 
         :type instance_tags: list
-        :param instance_tags: A list of hash/dictionaries of instance tags, '[{tag_key:"value", tag_value:"value"}]', tag_key must be not null when tag_value isn't null        
+        :param instance_tags: A list of hash/dictionaries of instance
+            tags, '[{tag_key:"value", tag_value:"value"}]', tag_key
+            must be not null when tag_value isn't null        
 
         :type allocate_public_ip: bool
         :param allocate_public_ip: Allocate Public IP Address to Instance
@@ -329,12 +349,11 @@ class ECSConnection(ACSQueryConnection):
         :param count: Create No. of Instances 
 
         :rtype: dict
-        :return: Returns a dictionary of instance information
-                 about the instances started/stopped.
-                 If the instance was not able to change state,
-                 "changed" will be set to False.
-                 Note that if instance_ids and instance_tags are both non-empty,
-                 this method will process the intersection of the two
+        :return: Returns a dictionary of instance information about
+            the instances started/stopped. If the instance was not
+            able to change state, "changed" will be set to False.
+            Note that if instance_ids and instance_tags are both non-
+            empty, this method will process the intersection of the two
         """
 
         params = {}
@@ -377,11 +396,9 @@ class ECSConnection(ACSQueryConnection):
             if 'charge_type' in internet_data:
                 self.build_list_params(params, internet_data[
                                        'charge_type'], 'InternetChargeType')
-
             if 'max_bandwidth_in' in internet_data:
                 self.build_list_params(params, internet_data[
                                        'max_bandwidth_in'], 'InternetMaxBandwidthIn')
-
             if 'max_bandwidth_out' in internet_data:
                 self.build_list_params(params, internet_data[
                                        'max_bandwidth_out'], 'InternetMaxBandwidthOut')
@@ -399,15 +416,12 @@ class ECSConnection(ACSQueryConnection):
             if 'disk_category' in system_disk:
                 self.build_list_params(params, system_disk[
                                        'disk_category'], 'SystemDisk.Category')
-
             if 'disk_size' in system_disk:
                 self.build_list_params(params, system_disk[
                                        'disk_size'], 'SystemDisk.Size')
-
             if 'disk_name' in system_disk:
                 self.build_list_params(params, system_disk[
                                        'disk_name'], 'SystemDisk.DiskName')
-
             if 'disk_description' in system_disk:
                 self.build_list_params(params, system_disk[
                                        'disk_description'], 'SystemDisk.Description')
@@ -420,27 +434,21 @@ class ECSConnection(ACSQueryConnection):
                     if 'device_category' in volume:
                         self.build_list_params(
                             params, volume['device_category'], 'DataDisk' + str(volumeno) + 'Category')
-
                     if 'device_size' in volume:
                         self.build_list_params(
                             params, volume['device_size'], 'DataDisk' + str(volumeno) + 'Size')
-
                     if 'device_name' in volume:
                         self.build_list_params(
                             params, volume['device_name'], 'DataDisk' + str(volumeno) + 'DiskName')
-
                     if 'device_description' in volume:
                         self.build_list_params(
                             params, volume['device_description'], 'DataDisk' + str(volumeno) + 'Description')
-
                     if 'delete_on_termination' in volume:
-                        self.build_list_params(params, volume[
-                                               'delete_on_termination'], 'DataDisk' + str(volumeno) + 'DeleteWithInstance')
-
+                        self.build_list_params(
+                            params, volume['delete_on_termination'], 'DataDisk' + str(volumeno) + 'DeleteWithInstance')
                     if 'snapshot' in volume:
                         self.build_list_params(
                             params, volume['snapshot'], 'DataDisk' + str(volumeno) + 'SnapshotId')
-
                     volumeno = volumeno + 1
 
         # Instance Tags
@@ -451,67 +459,69 @@ class ECSConnection(ACSQueryConnection):
                     if 'tag_key' in instance_tag:
                         self.build_list_params(params, instance_tag[
                                                'tag_key'], 'Tag' + str(tagno) + 'Key')
-
                     if 'tag_value' in instance_tag:
                         self.build_list_params(params, instance_tag[
                                                'tag_value'], 'Tag' + str(tagno) + 'Value')
-
                     tagno = tagno + 1
 
-        # CreateInstance method call, returns newly created instanceId
-        try:
-            instance_id = self.get_status('CreateInstance', params)
+        
+        for i in range(count): 
 
-            # After Creating a new Instance
-            if instance_id:
-                results.append(instance_id)
-
-            # Start newly created Instance
+            # CreateInstance method call, returns newly created instanceId
             try:
-                self.start_instances(instance_id)
+                instance_id = self.get_status('CreateInstance', params)
+                results.append(instance_id)             
+
             except Exception as ex:
                 msg, stack = ex.args
-                results.append("Start Instance Error:" +
+                results.append("Create Instance Error:" +
                                str(msg) + " " + str(stack))
 
-            # Allocate Public IP Address
-            try:
-                if allocate_public_ip:
-                    # Wait for 1 min to start instance
-                    # TODO: Replace this logic once get instance status method
-                    # is implemented. once instance comes in running state,
-                    # allocate allocate public ip
-                    time.sleep(60)
+            else: 
+                try:
+                    # Start newly created Instance
+                    self.start_instances(instance_id)
 
-                    allocate_public_ip_params = {}
-                    self.build_list_params(
-                        allocate_public_ip_params, instance_id, 'InstanceId')
-                    self.build_list_params(
-                        allocate_public_ip_params, region_id, 'RegionId')
-                    public_ip_address_status = self.get_status(
-                        'AllocatePublicIpAddress', allocate_public_ip_params)
-            except Exception as ex:
-                msg, stack = ex.args
-                results.append("Allocate Public IP Error:" +
-                               str(msg) + " " + str(stack))
+                except Exception as ex:
+                    msg, stack = ex.args
+                    results.append("Start Instance Error:" +
+                                    str(msg) + " " + str(stack))  
 
-            # Allocate EIP Address
-            try:
-                if bind_eip:
-                    allocate_eip_params = {}
-                    self.build_list_params(
-                        allocate_eip_params, bind_eip, 'AllocationId')
-                    self.build_list_params(
-                        allocate_eip_params, instance_id, 'InstanceId')
-                    eip_address = self.get_status(
-                        'AssociateEipAddress', allocate_eip_params)
-            except Exception as ex:
-                msg, stack = ex.args
-                results.append("Bind EIP Error:" + str(msg) + " " + str(stack))
+                else:   
+                    # Allocate Public IP Address
+                    try:
+                        if allocate_public_ip:
+                            # Wait for 1 min to start instance
+                            # TODO: Replace this logic once get instance status method
+                            # is implemented. once instance comes in running state,
+                            # allocate allocate public ip
+                            time.sleep(120)
+                            allocate_public_ip_params = {}
+                            self.build_list_params(
+                                allocate_public_ip_params, instance_id, 'InstanceId')
+                            self.build_list_params(
+                                allocate_public_ip_params, region_id, 'RegionId')
+                            public_ip_address_status = self.get_status(
+                                'AllocatePublicIpAddress', allocate_public_ip_params)
 
-        except Exception as ex:
-            msg, stack = ex.args
-            results.append("Create Instance Error:" +
-                           str(msg) + " " + str(stack))
+                    except Exception as ex:
+                        msg, stack = ex.args
+                        results.append("Allocate Public IP Error:" +
+                                       str(msg) + " " + str(stack))
+
+                    # Allocate EIP Address
+                    try:
+                        if bind_eip:
+                            allocate_eip_params = {}
+                            self.build_list_params(
+                                allocate_eip_params, bind_eip, 'AllocationId')
+                            self.build_list_params(
+                                allocate_eip_params, instance_id, 'InstanceId')
+                            eip_address = self.get_status(
+                                'AssociateEipAddress', allocate_eip_params)
+
+                    except Exception as ex:
+                        msg, stack = ex.args
+                        results.append("Bind EIP Error:" + str(msg) + " " + str(stack))               
 
         return results
