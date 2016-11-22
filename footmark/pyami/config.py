@@ -1,13 +1,6 @@
-
 #
 import os
-import re
-import warnings
-import StringIO
-import footmark
 
-# from footmark.compat import expanduser, ConfigParser, NoOptionError, NoSectionError, StringIO
-from ConfigParser import SafeConfigParser as ConfigParser
 try:
     os.path.expanduser('~')
     expanduser = os.path.expanduser
@@ -19,192 +12,100 @@ try:
 except ImportError:
     import json
 
-
 # By default we use two locations for the footmark configurations,
-# /etc/footmark.cfg and ~/.footmark (which works on Windows and Unix).
-FootmarkConfigPath = '/etc/footmark.cfg'
+# /etc/footmark/ and ~/.footmark (which works on Windows and Unix).
+FootmarkConfigPath = '/etc/footmark/'
 FootmarkConfigLocations = [FootmarkConfigPath]
-UserConfigPath = os.path.join(expanduser('~'), '.footmark')
+UserConfigPath = os.path.join(expanduser('~'), '.footmark/')
 FootmarkConfigLocations.append(UserConfigPath)
+FootmarkLoggingConfig = ''
+logging_config = '''
+[loggers]
+keys=root
 
-# If there's a FOOTMARK_CONFIG variable set, we load ONLY
-# that variable
-if 'FOOTMARK_CONFIG' in os.environ:
-    FootmarkConfigLocations = [expanduser(os.environ['FOOTMARK_CONFIG'])]
+[handlers]
+keys=consoleHandler,fileHandler
 
-# If there's a FOOTMARK_PATH variable set, we use anything there
-# as the current configuration locations, split with os.pathsep.
-elif 'FOOTMARK_PATH' in os.environ:
-    FootmarkConfigLocations = []
-    for path in os.environ['FOOTMARK_PATH'].split(os.pathsep):
-        FootmarkConfigLocations.append(expanduser(path))
+[formatters]
+keys=form01
+
+[logger_root]
+level=NOTSET
+handlers=consoleHandler,fileHandler
+
+[handler_consoleHandler]
+class=StreamHandler
+level=DEBUG
+formatter=form01
+args=()
+
+[handler_fileHandler]
+class=handlers.TimedRotatingFileHandler
+level=DEBUG
+formatter=form01
+args=('footmark.log','D',1,7)
+
+[formatter_form01]
+format=%(asctime)s [%(levelname)s] %(filename)s, %(funcName)s[%(lineno)d]: %(message)s
+'''
+
+# Default logging configurations.
+# By default we use location /var/footmark/ for the footmark logs.
+LoggingDict = '/var/log/footmark/'
+# LoggingDict = './'
+DefaultLoggingConfig = {
+    'version': 1,
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s [%(levelname)s] %(filename)s, %(funcName)s[%(lineno)d]: %(message)s'
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+            'level': 'DEBUG',
+            'stream': 'ext://sys.stdout'
+        },
+        'file': {
+            'class': 'logging.handlers.TimedRotatingFileHandler',
+            'formatter': 'default',
+            'level': 'DEBUG',
+            'filename': LoggingDict + 'footmark.log',
+            'when': 'D',
+            'interval': 1,
+            'backupCount': 7
+        }
+    },
+    "loggers": {
+        'footmark': {
+            'level': 'DEBUG',
+            'handlers': ['console', 'file']
+        }
+    }
+}
+
 
 class Config(object):
+    def __init__(self):
+        pass
 
-    def __init__(self, path=None, fp=None, do_load=True):
-        self._parser = ConfigParser({'working_dir': '/mnt/pyami',
-                                     'debug': '0'})
-        if do_load:
-            if path:
-                self.load_from_path(path)
-            elif fp:
-                self.readfp(fp)
-            else:
-                self.read(FootmarkConfigLocations)
-
-    def __setstate__(self, state):
-        # There's test that verify that (transitively) a Config
-        # object can be pickled.  Now that we're storing a _parser
-        # attribute and relying on __getattr__ to proxy requests,
-        # we need to implement setstate to ensure we don't get
-        # into recursive loops when looking up _parser when
-        # this object is unpickled.
-        self._parser = state['_parser']
-
-    def __getattr__(self, name):
-        return getattr(self._parser, name)
-
-    def has_option(self, *args, **kwargs):
-        return self._parser.has_option(*args, **kwargs)
-
-    def load_from_path(self, path):
-        file = open(path)
-        for line in file.readlines():
-            match = re.match("^#import[\s\t]*([^\s^\t]*)[\s\t]*$", line)
-            if match:
-                extended_file = match.group(1)
-                (dir, file) = os.path.split(path)
-                self.load_from_path(os.path.join(dir, extended_file))
-        self.read(path)
-
-    def save_option(self, path, section, option, value):
-        """
-        Write the specified Section.Option to the config file specified by path.
-        Replace any previous value.  If the path doesn't exist, create it.
-        Also add the option the the in-memory config.
-        """
-        config = ConfigParser()
-        config.read(path)
-        if not config.has_section(section):
-            config.add_section(section)
-        config.set(section, option, value)
-        fp = open(path, 'w')
-        config.write(fp)
-        fp.close()
-        if not self.has_section(section):
-            self.add_section(section)
-        self.set(section, option, value)
-
-    def save_user_option(self, section, option, value):
-        self.save_option(UserConfigPath, section, option, value)
-
-    def save_system_option(self, section, option, value):
-        self.save_option(FootmarkConfigPath, section, option, value)
-
-    # def get_instance(self, name, default=None):
-    #     try:
-    #         val = self.get('Instance', name)
-    #     except (NoOptionError, NoSectionError):
-    #         val = default
-    #     return val
-    #
-    # def get_user(self, name, default=None):
-    #     try:
-    #         val = self.get('User', name)
-    #     except (NoOptionError, NoSectionError):
-    #         val = default
-    #     return val
-    #
-    # def getint_user(self, name, default=0):
-    #     try:
-    #         val = self.getint('User', name)
-    #     except (NoOptionError, NoSectionError):
-    #         val = default
-    #     return val
-    #
-    # def get_value(self, section, name, default=None):
-    #     return self.get(section, name, default)
-    #
-    # def get(self, section, name, default=None):
-    #     try:
-    #         return self._parser.get(section, name)
-    #     except (NoOptionError, NoSectionError):
-    #         return default
-    #
-    # def getint(self, section, name, default=0):
-    #     try:
-    #         return self._parser.getint(section, name)
-    #     except (NoOptionError, NoSectionError):
-    #         return int(default)
-    #
-    # def getfloat(self, section, name, default=0.0):
-    #     try:
-    #         return self._parser.getfloat(section, name)
-    #     except (NoOptionError, NoSectionError):
-    #         return float(default)
-
-    def getbool(self, section, name, default=False):
-        if self.has_option(section, name):
-            val = self.get(section, name)
-            if val.lower() == 'true':
-                val = True
-            else:
-                val = False
+    def init_config(self):
+        import platform
+        sysstr = platform.system()
+        if sysstr == "Linux":
+            if not os.path.exists(FootmarkConfigLocations[0]):
+                os.makedirs(FootmarkConfigLocations[0])
+                FootmarkLoggingConfig = FootmarkConfigLocations[0] + 'logging.conf'
         else:
-            val = default
-        return val
+            os.makedirs(FootmarkConfigLocations[1])
+            FootmarkLoggingConfig = FootmarkConfigLocations[1] + 'logging.conf'
+        self.add_logging_config(FootmarkLoggingConfig)
 
-    def setbool(self, section, name, value):
-        if value:
-            self.set(section, name, 'true')
-        else:
-            self.set(section, name, 'false')
+        if not os.path.exists(LoggingDict):
+            os.makedirs(LoggingDict)
 
-    # def dump(self):
-    #     s = StringIO()
-    #     self.write(s)
-    #     print(s.getvalue())
-    #
-    # def dump_safe(self, fp=None):
-    #     if not fp:
-    #         fp = StringIO()
-    #     for section in self.sections():
-    #         fp.write('[%s]\n' % section)
-    #         for option in self.options(section):
-    #             if option == 'aws_secret_access_key':
-    #                 fp.write('%s = xxxxxxxxxxxxxxxxxx\n' % option)
-    #             else:
-    #                 fp.write('%s = %s\n' % (option, self.get(section, option)))
-    #
-    # def dump_to_sdb(self, domain_name, item_name):
-    #     from footmark.compat import json
-    #     sdb = footmark.connect_sdb()
-    #     domain = sdb.lookup(domain_name)
-    #     if not domain:
-    #         domain = sdb.create_domain(domain_name)
-    #     item = domain.new_item(item_name)
-    #     item.active = False
-    #     for section in self.sections():
-    #         d = {}
-    #         for option in self.options(section):
-    #             d[option] = self.get(section, option)
-    #         item[section] = json.dumps(d)
-    #     item.save()
-    #
-    # def load_from_sdb(self, domain_name, item_name):
-    #     from footmark.compat import json
-    #     sdb = footmark.connect_sdb()
-    #     domain = sdb.lookup(domain_name)
-    #     item = domain.get_item(item_name)
-    #     for section in item.keys():
-    #         if not self.has_section(section):
-    #             self.add_section(section)
-    #         d = json.loads(item[section])
-    #         for attr_name in d.keys():
-    #             attr_value = d[attr_name]
-    #             if attr_value is None:
-    #                 attr_value = 'None'
-    #             if isinstance(attr_value, bool):
-    #                 self.setbool(section, attr_name, attr_value)
-    #             else:
-    #                 self.set(section, attr_name, attr_value)
+    def add_logging_config(self, config_file):
+        file_pb = open(config_file, 'wb')
+        file_pb.write(logging_config)
+        file_pb.close()

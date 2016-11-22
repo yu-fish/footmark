@@ -1,9 +1,8 @@
-
 """
 Represents an ECS Instance
 """
-import json
 from footmark.ecs.ecsobject import *
+
 
 class Instance(TaggedECSObject):
     """
@@ -13,7 +12,6 @@ class Instance(TaggedECSObject):
     def __init__(self, connection=None):
         super(Instance, self).__init__(connection)
         self.tags = {}
-
 
     def __repr__(self):
         return 'Instance:%s' % self.id
@@ -35,6 +33,10 @@ class Instance(TaggedECSObject):
             return self.eip_address.get('ip_address', None)
         if name in ('group_id', 'security_group_id'):
             return self.security_group_id
+        if name in ('group_name', 'security_group_name') and self.security_groups:
+            return self.security_groups[0].security_group_name
+        if name == 'groups':
+            return self.security_groups
         raise AttributeError
 
     def __setattr__(self, name, value):
@@ -60,6 +62,10 @@ class Instance(TaggedECSObject):
         if name in ('group_id', 'security_group_id'):
             if isinstance(value, list) and value:
                 value = value[0]
+        if name in ('group_name', 'security_group_name') and self.security_groups:
+            self.security_groups[0].security_group_name = value
+        if name == 'groups':
+            self.security_groups = value
         if name == 'tags' and value:
             v = {}
             for tag in value['tag']:

@@ -1,13 +1,12 @@
-#coding:utf-8
+# coding:utf-8
 import sys
+
 reload(sys)
 sys.setdefaultencoding("utf-8")
 """
 Handles basic connections to ACS
 """
 
-import xml.sax
-import six
 import footmark
 import importlib
 from footmark.exception import FootmarkServerError
@@ -15,6 +14,7 @@ from footmark.provider import Provider
 import json
 
 from aliyunsdkcore import client
+
 
 class ACSAuthConnection(object):
     def __init__(self, acs_access_key_id=None,
@@ -49,19 +49,21 @@ class ACSAuthConnection(object):
 
     def acs_access_key_id(self):
         return self.provider.access_key
+
     acs_access_key_id = property(acs_access_key_id)
     access_key = acs_access_key_id
 
     def acs_secret_access_key(self):
         return self.provider.secret_key
+
     acs_secret_access_key = property(acs_secret_access_key)
     secret_key = acs_secret_access_key
 
     def region_id(self):
         return self.region
 
-class ACSQueryConnection(ACSAuthConnection):
 
+class ACSQueryConnection(ACSAuthConnection):
     ResponseError = FootmarkServerError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
@@ -85,7 +87,7 @@ class ACSQueryConnection(ACSAuthConnection):
             request = getattr(module, action + 'Request')()
             request.set_accept_format('json')
             if params and isinstance(params, dict):
-                for k,v in params.items():
+                for k, v in params.items():
                     if hasattr(request, k):
                         getattr(request, k)(v)
                     else:
@@ -100,7 +102,7 @@ class ACSQueryConnection(ACSAuthConnection):
         response = json.loads(response, encoding='UTF-8')
         if markers and markers[0] in response:
             for value in response[markers[0]].itervalues():
-                if value is None or len(value)<1:
+                if value is None or len(value) < 1:
                     return results
                 for item in value:
                     element = markers[1](connection)
@@ -112,10 +114,10 @@ class ACSQueryConnection(ACSAuthConnection):
         if not isinstance(dict_data, dict):
             return
 
-        for k,v in dict_data.items():
+        for k, v in dict_data.items():
             if isinstance(v, dict):
                 value = {}
-                for kk,vv in v.items():
+                for kk, vv in v.items():
                     value[self.convert_name(kk)] = vv
                 v = value
                 self.parse_dict(element, v)
@@ -131,17 +133,17 @@ class ACSQueryConnection(ACSAuthConnection):
             if new_name.startswith('_'):
                 new_name = new_name[1:]
             return new_name
+
     # generics
 
     def get_list(self, action, params, markers):
         response = self.make_request(action, params)
-        # print 'response:', response
         body = response[-1]
-        footmark.log.debug(body)
         if not body:
             footmark.log.error('Null body %s' % body)
             raise self.ResponseError(response[0], body)
         elif response[0] in (200, 201):
+            footmark.log.info('status= %s ; body= %s' % (response[0], body))
             return self.parse_response(markers, body, self)
         else:
             footmark.log.error('%s %s' % (response[0], body))
@@ -155,9 +157,15 @@ class ACSQueryConnection(ACSAuthConnection):
             footmark.log.error('Null body %s' % body)
             raise self.ResponseError(response[0], body)
         elif response[0] in (200, 201):
-            return 'success'
+            footmark.log.info('status= %s ; body= %s' % (response[0], body))
+            # return 'success'
+            # C2C : Commented returning success string. Now conditionaly sending json 
+            # response in when action is create instance  
+            if action == 'CreateInstance':
+                result = json.loads(response[2])
+                return result['InstanceId']
+            else:
+                return 'success'
         else:
             footmark.log.error('%s %s' % (response[0], body))
-            footmark.log.error('%s' % body)
             raise self.ResponseError(response[0], body)
-
