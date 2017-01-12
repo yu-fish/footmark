@@ -3,6 +3,7 @@
 # sys.path.append("../../..")
 from footmark.ecs.connection import ECSConnection
 from tests.unit import ACSMockServiceTestCase
+import json
 
 DESCRIBE_INSTANCE = '''
 {
@@ -78,6 +79,108 @@ MANAGE_INSTANCE = '''
 }
 '''
 
+CREATE_INSTANCE = '''
+{
+    "InstanceId":"i-2zeg0900kzwn7dpo7zrb",
+    "RequestId":"9206E7A7-BFD5-457F-9173-91CF4525DE21"
+}
+'''
+
+Create_Security_Group = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
+    "SecurityGroupId": "sg-2ze95f8a2ni6bb2wql3b"
+}
+'''
+
+Authorize_Security_Group = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
+}
+'''
+
+DELETE_SECURITY_GROUP = '''
+{
+    "PageNumber":1,
+    "TotalCount":1,
+    "PageSize":10,
+    "RequestId":"D8C42A44-7B92-40BC-9DAA-41B7EB733A6C",
+    "RegionId":"us-west-1",
+    "SecurityGroups":
+    {
+    "SecurityGroup":[
+       {
+         "CreationTime":"2016-12-15T06:48:05Z",
+         "Tags":{"Tag":[]},
+         "SecurityGroupId":"sg-rj9606ryhhy2c3t8ljtx",
+         "Description":"",
+         "SecurityGroupName":"est",
+         "AvailableInstanceAmount":1000,
+         "VpcId":""
+         }]
+    }
+}
+'''
+
+GET_SECURITY_STATUS = '''
+{
+    "PageNumber": 1,
+    "PageSize": 10,
+    "RegionId": "cn-beijing",
+    "RequestId": "2076C42F-7E15-4F69-926F-C404E6A2F0DD",
+    "SecurityGroups": {
+    "SecurityGroup": [
+                    {
+                        "AvailableInstanceAmount": 1000,
+                        "CreationTime": "2016-12-19T04:54:38Z",
+                        "Description": "",
+                        "SecurityGroupId": "sg-2zegbxmrjvoz4ypz3kku",
+                        "SecurityGroupName": "",
+                        "Tags": {
+                            "Tag": []
+                        },
+                        "VpcId": ""
+                    },
+                    {
+                        "AvailableInstanceAmount": 1000,
+                        "CreationTime": "2016-12-19T04:52:34Z",
+                        "Description": "",
+                        "SecurityGroupId": "sg-2zeaikpg8zhl7j5rrfnt",
+                        "SecurityGroupName": "",
+                        "Tags": {
+                            "Tag": []
+                        },
+                        "VpcId": ""
+                    },
+                    {
+                        "AvailableInstanceAmount": 1000,
+                        "CreationTime": "2016-12-01T12:01:28Z",
+                        "Description": "Allow inboud traffic for control nodes",
+                        "SecurityGroupId": "sg-2ze80xuiw0b85tzbv7x9",
+                        "SecurityGroupName": "hi-control",
+                        "Tags": {
+                            "Tag": []
+                        },
+                        "VpcId": "vpc-2zegy4zyl0nv0w5i1ay6j"
+                    },
+                    {
+                        "AvailableInstanceAmount": 996,
+                        "CreationTime": "2014-12-18T05:30:20Z",
+                        "Description": "System created security group.",
+                        "SecurityGroupId": "sg-25y6ag32b",
+                        "SecurityGroupName": "sg-25y6ag32b",
+                        "Tags": {
+                            "Tag": []
+                        },
+                        "VpcId": ""
+                    }
+                ]
+            },
+    "TotalCount": 4
+}
+
+'''
+
 
 class TestDescribeInstances(ACSMockServiceTestCase):
     connection_class = ECSConnection
@@ -148,6 +251,169 @@ class TestManageInstances(ACSMockServiceTestCase):
         self.assertEqual(len(result), len(self.instance_ids))
         self.assertIn(result[0], self.instance_ids)
 
-#
-# if __name__ == '__main__':
-#     unittest.main()
+
+# C2C : Unit Test For CreateInstance Method
+class TestCreateInstance(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+
+    acs_access_key_id = "N8cvD83K81USpn3u"
+    acs_secret_access_key = "fqbuZIKPxOdu36yhFvaBtihNqD2qQ2"
+    region_id = "cn-beijing"
+    image_id = "ubuntu1404_64_40G_cloudinit_20160727.raw"
+    instance_type = "ecs.n1.small"
+    group_id = "sg-25y6ag32b"
+    zone_id = "cn-beijing-b"
+    io_optimized = True
+    instance_name = "MyInstance"
+    description = None
+    internet_data = {
+        'charge_type': 'PayByBandwidth',
+        'max_bandwidth_in': 200,
+        'max_bandwidth_out': 0
+    }
+
+    host_name = None
+    password = None
+    system_disk = {"disk_category": "cloud_efficiency", "disk_size": 50}
+    volumes = [
+        {
+            "device_category": "cloud_efficiency",
+            "device_size": 20,
+            "device_name": "volume1",
+            "device_description": "volume 1 description comes here"
+        },
+        {
+            "device_category": "cloud_efficiency",
+            "device_size": 20,
+            "device_name": "volume2",
+            "device_description": "volume 2 description comes here"
+        }
+    ]
+    vswitch_id = None
+    instance_tags = [
+        {
+            "tag_key": "create_test_1",
+            "tag_value": "0.01"
+        },
+        {
+            "tag_key": "create_test_2",
+            "tag_value": "0.02"
+        }
+    ]
+    allocate_public_ip = True
+    bind_eip = False
+    instance_charge_type = None
+    period = None
+    auto_renew = False
+    ids = None
+    count = 1
+
+    def default_body(self):
+        return CREATE_INSTANCE
+
+    def test_create_instance(self):
+        self.set_http_response(status_code=200)
+        result = self.service_connection.create_instance(image_id=self.image_id,
+                                                         instance_type=self.instance_type, group_id=self.group_id,
+                                                         zone_id=self.zone_id, instance_name=self.instance_name,
+                                                         description=self.description, internet_data=self.internet_data,
+                                                         host_name=self.host_name, password=self.password,
+                                                         io_optimized=self.io_optimized, system_disk=self.system_disk,
+                                                         volumes=self.volumes, vswitch_id=self.vswitch_id,
+                                                         instance_tags=self.instance_tags,
+                                                         allocate_public_ip=self.allocate_public_ip,
+                                                         bind_eip=self.bind_eip, count=self.count,
+                                                         instance_charge_type=self.instance_charge_type,
+                                                         period=self.period, auto_renew=self.auto_renew, ids=self.ids)
+        self.assertEqual(len(result), self.count)
+        self.assertEqual(result[0]['InstanceId'], u'i-2zeg0900kzwn7dpo7zrb')
+
+
+class TestCreateAuthorizeSecurityGroup(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+    acs_access_key = 'LTAIYkF7vqzLz5Zz'
+    acs_secret_access_key = 'jwibCDw18eD7SJHrGfasFcVGbjfdy5'
+    region_id = "cn-beijing"
+
+    group_tags = [
+        {
+            "tag_key": "create_test_1",
+            "tag_value": "0.01"
+        },
+        {
+            "tag_key": "create_test_2",
+            "tag_value": "0.02"
+        }
+    ]
+    inbound_rules = [
+        {
+            "proto": "all",
+            "from_port": "-1",
+            "to_port": "-1",
+            "cidr_ip": "10.159.6.18/12",
+        }
+    ]
+
+    outbound_rules = [
+        {
+            "proto": "tcp",
+            "from_port": "2",
+            "to_port": "100",
+            "cidr_ip": "10.159.6.18/12",
+        }
+    ]
+
+    def default_body(self):
+        return Create_Security_Group
+
+    def test_create_security_grp(self):
+        self.set_http_response(status_code=200)
+        changed, security_group_id, result = self.service_connection.create_security_group(group_name="Blue123",
+                                                                                           group_description="TestDataforBlue",
+                                                                                           group_tags=self.group_tags,
+                                                                                           inbound_rules=self.inbound_rules,
+                                                                                           outbound_rules=self.outbound_rules)
+
+        self.assertEqual(security_group_id, u'sg-2ze95f8a2ni6bb2wql3b')
+        rs = result[0]
+        self.assertEqual(rs, u'Security Group Creation Successful')
+        rs = result[1]
+        self.assertEqual(rs, u'inbound rule authorization successful')
+        rs = result[2]
+        self.assertEqual(rs, u'outbound rule authorization successful')
+
+
+class TestDeleteSecurityGroup(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+    acs_access_key = 'LTAIYkF7vqzLz5Zz'
+    acs_secret_access_key = 'jwibCDw18eD7SJHrGfasFcVGbjfdy5'
+    group_ids = [
+        'sg-rj9elk6bkehdlyxhm79f', 'sg-rj90ienb9kpbgqv6x4qe'
+    ]
+    region = 'us-west-1'
+
+    def default_body(self):
+        return DELETE_SECURITY_GROUP
+
+    def test_delete_security_grp(self):
+        self.set_http_response(status_code=200)
+        changed, result = self.service_connection.delete_security_group(group_ids=self.group_ids)
+        self.assertEqual(result[0][u'RequestId'], "D8C42A44-7B92-40BC-9DAA-41B7EB733A6C")
+
+
+class TestGetSecurityStatus(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+
+    acs_access_key = 'N8cvD83K81USpn3u'
+    acs_secret_access_key = 'fqbuZIKPxOdu36yhFvaBtihNqD2qQ2'
+    region = 'cn-beijing'
+    state = 'getinfo'
+
+    def default_body(self):
+        return GET_SECURITY_STATUS
+
+    def test_get_security_status(self):
+        self.set_http_response(status_code=200)
+        changed, result = self.service_connection.get_security_status(vpc_id=None, group_id=None)
+
+        self.assertEqual(result[u'RequestId'], "2076C42F-7E15-4F69-926F-C404E6A2F0DD")
