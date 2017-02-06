@@ -78,8 +78,8 @@ MANAGE_INSTANCE = '''
     "RequestId": "14A07460-EBE7-47CA-9757-12CC4761D47A",
 }
 '''
-
-Create_Security_Group = '''
+         
+Create_Security_Group ='''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
     "SecurityGroupId": "sg-2ze95f8a2ni6bb2wql3b"
@@ -183,7 +183,7 @@ GET_SECURITY_STATUS = '''
 
 MODIFY_INSTANCE = '''
 {
-
+       
         "changed": true,
         "instance_ids": ["i-rj97hhf9ue16ewoged75"],
         "result": [
@@ -222,10 +222,10 @@ LEAVE_GROUP = '''
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
 }
 '''
-
+   
 CREATE_DISK = '''
 {
-
+     
     "changed": true,
     "DiskId": "d-rj91n5w6koukwqqkxsf8",
     "result": ["Disk Creation Successful"]
@@ -284,6 +284,84 @@ DETACH_DISK = '''
 DELETE_DISK = '''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
+} 
+'''
+
+CREATE_IMAGE = '''
+{
+    "RequestId": "8ECE78F4-9E81-46CD-9340-0D69CFAAA315",
+    "ImageId": "m-j6cb0rw4eso5jsc6927n",
+    "PageSize": 10,
+    "TotalCount": 1,
+    "PageNumber": 1,
+    "Snapshots": {
+        "Snapshot": [{
+            "Status": "accomplished",
+            "ProductCode": "",
+            "Description": "Created s-j6ccfgptbi05ha1csvw9 from i-j6c2tbw6nsau39ippm94",
+            "Tags": {
+                "Tag": []
+            },
+            "SnapshotName": "",
+            "SourceDiskType": "system",
+            "CreationTime": "2017-01-27T11:50:58Z",
+            "SourceDiskId": "d-j6ccbroi7rj23c3de0s4",
+            "SourceDiskSize": 40,
+            "Progress": "100%",
+            "Usage": "image",
+            "SnapshotId": "s-j6ccfgptbi05ha1csvw9"
+        }]
+    }
+}
+'''
+
+DELETE_IMAGE = '''
+{
+    "PageSize": 10,
+    "RegionId": "cn-hongkong",
+    "TotalCount": 1,
+    "PageNumber": 1,
+    "RequestId": "EB62BD82-B468-4CDC-BF97-91C9A97996FA",
+    "Images": {
+        "Image": [
+            {
+                "Status": "Available",
+                "ProductCode": "",
+                "Platform": "CentOS",
+                "Description": "",
+                "IsCopied": false,
+                "Tags": {
+                    "Tag": []
+                },
+                "IsSubscribed": false,
+                "IsSelfShared": "",
+                "CreationTime": "2017-01-19T05:47:25Z",
+                "OSName": "CentOS  7.2 64\u4f4d",
+                "DiskDeviceMappings": {
+                    "DiskDeviceMapping": [
+                        {
+                            "Format": "",
+                            "ImportOSSBucket": "",
+                            "Device": "/dev/xvda",
+                            "SnapshotId": "s-62jsw4rba",
+                            "ImportOSSObject": "",
+                            "Size": "40"
+                        }
+                    ]
+                },
+                "ImageId": "m-j6chvbnmr7lr6tg9276s",
+                "Usage": "none",
+                "ImageName": "m-j6chvbnmr7lr6tg9276s",
+                "Architecture": "x86_64",
+                "ImageOwnerAlias": "self",
+                "OSType": "linux",
+                "Progress": "100%",
+                "Size": 40,
+                "ImageVersion": "",
+                "IsSupportIoOptimized": true
+            }
+        ]
+    }
 }
 '''
 
@@ -398,10 +476,10 @@ class TestCreateAuthorizeSecurityGroup(ACSMockServiceTestCase):
     def test_create_security_grp(self):
         self.set_http_response(status_code=200)
         changed, security_group_id, result = self.service_connection.create_security_group(group_name="Blue123",
-                                                                                           group_description="TestDataforBlue",
-                                                                                           group_tags=self.group_tags,
-                                                                                           inbound_rules=self.inbound_rules,
-                                                                                           outbound_rules=self.outbound_rules)
+                                                               group_description="TestDataforBlue",
+                                                               group_tags=self.group_tags,
+                                                               inbound_rules=self.inbound_rules,
+                                                               outbound_rules=self.outbound_rules)
 
         self.assertEqual(security_group_id, u'sg-2ze95f8a2ni6bb2wql3b')
         rs = result[0]
@@ -412,18 +490,18 @@ class TestCreateAuthorizeSecurityGroup(ACSMockServiceTestCase):
         self.assertEqual(rs, u'outbound rule authorization successful')
 
 
-class TestDeleteSecurityGroup(ACSMockServiceTestCase):
+class TestDeleteSecurityGroup(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     acs_access_key = 'LTAIYkF7vqzLz5Zz'
     acs_secret_access_key = 'jwibCDw18eD7SJHrGfasFcVGbjfdy5'
     group_ids = [
-        'sg-rj9elk6bkehdlyxhm79f', 'sg-rj90ienb9kpbgqv6x4qe'
-    ]
+                  'sg-rj9elk6bkehdlyxhm79f','sg-rj90ienb9kpbgqv6x4qe'
+                 ]
     region = 'us-west-1'
-
+    
     def default_body(self):
         return DELETE_SECURITY_GROUP
-
+    
     def test_delete_security_grp(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.delete_security_group(group_ids=self.group_ids)
@@ -432,7 +510,7 @@ class TestDeleteSecurityGroup(ACSMockServiceTestCase):
 
 class TestGetSecurityStatus(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
+   
     acs_access_key = 'N8cvD83K81USpn3u'
     acs_secret_access_key = 'fqbuZIKPxOdu36yhFvaBtihNqD2qQ2'
     region = 'cn-beijing'
@@ -444,7 +522,7 @@ class TestGetSecurityStatus(ACSMockServiceTestCase):
     def test_get_security_status(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.get_security_status(vpc_id=None, group_id=None)
-
+        
         self.assertEqual(result[u'RequestId'], "2076C42F-7E15-4F69-926F-C404E6A2F0DD")
 
 
@@ -454,6 +532,7 @@ class TestAuthorizeSecurityGroup(ACSMockServiceTestCase):
     acs_secret_access_key = 'jwibCDw18eD7SJHrGfasFcVGbjfdy5'
     region_id = "cn-beijing"
     security_group_id = 'sg-2ze95f8a2ni6bb2wql3b'
+
 
     inbound_rules = [
         {
@@ -478,9 +557,8 @@ class TestAuthorizeSecurityGroup(ACSMockServiceTestCase):
 
     def test_authorize_security_grp(self):
         self.set_http_response(status_code=200)
-        result = self.service_connection.authorize_security_group(security_group_id=self.security_group_id,
-                                                                  inbound_rules=self.inbound_rules,
-                                                                  outbound_rules=self.outbound_rules)
+        result = self.service_connection.authorize_security_group(security_group_id = self.security_group_id, inbound_rules=self.inbound_rules,
+                                                               outbound_rules=self.outbound_rules)
         rs = result[0]
         self.assertEqual(rs, u'inbound rule authorization successful')
         rs = result[1]
@@ -497,10 +575,10 @@ class TestCreateInstance(ACSMockServiceTestCase):
     instance_name = "MyInstance"
     description = None
     internet_data = {
-        'charge_type': 'PayByTraffic',
-        'max_bandwidth_in': 200,
-        'max_bandwidth_out': 0
-    }
+                        'charge_type': 'PayByTraffic',
+                        'max_bandwidth_in': 200,
+                        'max_bandwidth_out': 0
+                    }
 
     host_name = None
     password = None
@@ -531,7 +609,7 @@ class TestCreateInstance(ACSMockServiceTestCase):
     instance_charge_type = None
     period = None
     auto_renew = False
-    auto_renew_period = None
+    auto_renew_period =None
     instance_tags = [
         {
             "tag_key": "create_test_1",
@@ -545,11 +623,11 @@ class TestCreateInstance(ACSMockServiceTestCase):
     ids = None
     count = 1
     wait = True
-    wait_timeout = 60
-
+    wait_timeout = 60    
+    
     def default_body(self):
         return CREATE_INSTANCE
-
+                                                                    
     def test_create_instance(self):
         self.set_http_response(status_code=200)
         result = self.service_connection.create_instance(image_id=self.image_id, instance_type=self.instance_type,
@@ -587,13 +665,13 @@ class TestModifyInstance(ACSMockServiceTestCase):
 
     def test_modify_instance(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.modify_instance(attributes=self.attributes)
+        changed, result = self.service_connection.modify_instance(attributes=self.attributes)                  
         self.assertEqual(result[0]['instance_ids'], [u'i-rj97hhf9ue16ewoged75'])
 
 
 class TestGetInstance(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
+   
     region_id = "cn-beijing"
     pagenumber = 1
     pagesize = 5
@@ -605,12 +683,12 @@ class TestGetInstance(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         result = self.service_connection.get_instance_status(zone_id=None, pagenumber=self.pagenumber,
                                                              pagesize=self.pagesize)
-
+        
         self.assertEqual(result[1][u'PageNumber'], self.pagenumber)
         self.assertEqual(result[1][u'PageSize'], self.pagesize)
 
 
-class TestJoinSecGrp(ACSMockServiceTestCase):
+class TestJoinSecGrp(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     acs_access_key = 'LTAIV7yukr6Csf14'
     acs_secret_access_key = 'it9TEJcJvnDyL5uB830fx1BQwzdNdd'
@@ -625,18 +703,17 @@ class TestJoinSecGrp(ACSMockServiceTestCase):
 
     def test_join_grp(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.join_security_group(instance_ids=self.instance_ids,
-                                                                      group_id=self.group_id)
+        changed, result = self.service_connection.join_security_group(instance_ids=self.instance_ids, group_id=self.group_id)
         ###self.assertEqual(len(result), len(self.attributes))
-        # self.assertEqual(result[0], "success")
-        res = ''
+        #self.assertEqual(result[0], "success")
+        res=''
         if len(result) == 1:
             res = "success"
         else:
             res = "fail"
 
 
-class TestLeaveSecGrp(ACSMockServiceTestCase):
+class TestLeaveSecGrp(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     acs_access_key = 'LTAIV7yukr6Csf14'
     acs_secret_access_key = 'it9TEJcJvnDyL5uB830fx1BQwzdNdd'
@@ -651,11 +728,10 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
 
     def test_leave_grp(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.leave_security_group(instance_ids=self.instance_ids,
-                                                                       group_id=self.group_id)
+        changed, result = self.service_connection.leave_security_group(instance_ids=self.instance_ids, group_id=self.group_id)
         ###self.assertEqual(len(result), len(self.attributes))
-        # self.assertEqual(result[0], "success")
-        res = ''
+        #self.assertEqual(result[0], "success")
+        res=''
         if len(result) == 1:
             res = "success"
         else:
@@ -664,33 +740,34 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
 
 class TestCreateDisk(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
+   
     acs_access_key = 'LTAIzdIZ4QfZ4exJ'
     acs_secret_access_key = 'M3kLkozwvVx7Z8BwYfvYM0kC1703kP'
-    region = 'us-west-1'
+    region =  'us-west-1'  
     disk_category = 'cloud'
     zone_id = 'us-west-1a'
-    disk_name = 'aspen'
+    disk_name = 'aspen'    
     size = 20
     count = 1
     state = 'present'
+
 
     def default_body(self):
         return CREATE_DISK
 
     def test_create_disk(self):
         self.set_http_response(status_code=200)
-        changed, disk_id, result = self.service_connection.create_disk(zone_id=self.zone_id, disk_name=self.disk_name,
-                                                                       description=None,
-                                                                       disk_category=self.disk_category, size=self.size,
-                                                                       disk_tags=None, snapshot_id=None, count=None)
-
+        changed, disk_id, result = self.service_connection.create_disk(zone_id=self.zone_id, disk_name=self.disk_name, description=None,
+                                                                        disk_category=self.disk_category, size=self.size,
+                                                                        disk_tags=None, snapshot_id=None, count=None)
+        
+       
         self.assertEqual(disk_id, u'd-rj91n5w6koukwqqkxsf8')
         rs = result[0]
-        self.assertEqual(rs, u'Disk Creation Successful')
+        self.assertEqual(rs, u'Disk Creation Successful')  
 
 
-class TestAttachDisk(ACSMockServiceTestCase):
+class TestAttachDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     acs_access_key = 'LTAIV7yukr6Csf14'
     acs_secret_access_key = 'it9TEJcJvnDyL5uB830fx1BQwzdNdd'
@@ -700,24 +777,22 @@ class TestAttachDisk(ACSMockServiceTestCase):
     device = None
     delete_with_instance = None
     state = 'present'
-
+    
     def default_body(self):
         return ATTACH_DISK
-
     def test_attach_disk(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.attach_disk(disk_id=self.disk_id, instance_id=self.instance_ids,
-                                                              device=self.device,
-                                                              delete_with_instance=self.delete_with_instance)
+                                                     device=self.device,delete_with_instance=self.delete_with_instance)
         ###self.assertEqual(len(result), len(self.attributes))
         self.assertEqual(result[0]['RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
 
 
-class TestDetachDisk(ACSMockServiceTestCase):
+class TestDetachDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
-    region_id = "cn-beijing"
+    region_id = "cn-beijing"           
     disk_id = "d-2zecexhwthhw5wyco3m2"
-
+    
     def default_body(self):
         return DETACH_DISK
 
@@ -728,10 +803,10 @@ class TestDetachDisk(ACSMockServiceTestCase):
             self.assertEqual(result[0]['RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
 
 
-class TestDeleteDisk(ACSMockServiceTestCase):
+class TestDeleteDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     disk_id = "d-2zecexhwthhw5wyco3m2"
-
+    
     def default_body(self):
         return DELETE_DISK
 
@@ -742,4 +817,50 @@ class TestDeleteDisk(ACSMockServiceTestCase):
             self.assertEqual(result[u'RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
         else:
             self.assertEqual(result[0], {'Error Message': 'Disk not exist'})
+
+
+class TestCreateImage(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+    acs_access_key = 'LTAIV7yukr6Csf14'
+    acs_secret_access_key = 'it9TEJcJvnDyL5uB830fx1BQwzdNdd'
+    region_id = 'cn-hongkong'
+    snapshot_id = 's-j6cjdk51ejf0mtdnb7ba'
+    image_name = 'testimage4'
+    image_version = '2'
+    description = 'test4'
+    images_tags = [{"tag_key": "tag1key", "tag_value": "tag1value"}, {"tag_key": "tag2key", "tag_value": "tag2value"}]
+    disk_mapping = None
+    instance_id = None
+
+    def default_body(self):
+        return CREATE_IMAGE
+   
+    def test_create_image(self):
+        self.set_http_response(status_code=200)
+        changed, image_id, result, request_id = self.service_connection.create_image(snapshot_id=self.snapshot_id, image_name=self.image_name,
+                                                      image_version=self.image_version, description=self.description,
+                                                      images_tags=self.images_tags,instance_id=self.instance_id,
+                                                      disk_mapping=self.disk_mapping,wait=None,wait_timeout=None)
+        self.assertEqual(image_id, 'm-j6cb0rw4eso5jsc6927n')
+
+
+class TestDeleteImage(ACSMockServiceTestCase): 
+    connection_class = ECSConnection
+
+    acs_access_key = 'LTAIzdIZ4QfZ4exJ'
+    acs_secret_access_key = 'M3kLkozwvVx7Z8BwYfvYM0kC1703kP'
+    image_id = 'm-j6chvbnmr7lr6tg9276s'
+    region = 'cn-hongkong'
+    state = 'absent'    
+
+    def default_body(self):
+        return DELETE_IMAGE
+
+    def test_delete_image(self):
+        self.set_http_response(status_code=200)
+        changed, result = self.service_connection.delete_image(image_id=self.image_id)
+        self.assertEqual(result[0][u'RequestId'], "EB62BD82-B468-4CDC-BF97-91C9A97996FA")
+        
+
+
 
