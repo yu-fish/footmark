@@ -5,7 +5,7 @@ import os
 
 from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
-__version__ = '1.2.0'
+__version__ = '1.3.3'
 Version = __version__  # for backware compatibility
 
 
@@ -18,7 +18,6 @@ def init_logging():
             logging.config.dictConfig(DefaultLoggingConfig)
     except:
         pass
-
 
 init_logging()
 log = logging.getLogger('footmark')

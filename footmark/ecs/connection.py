@@ -15,7 +15,6 @@ from footmark.ecs.regioninfo import RegionInfo
 from footmark.ecs.securitygroup import SecurityGroup
 from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError
-from footmark.ecs.vrouter import VRouterList
 
 
 class ECSConnection(ACSQueryConnection):
@@ -240,6 +239,42 @@ class ECSConnection(ACSQueryConnection):
             self.build_filter_params(params, filters)
         return self.get_list('DescribeDisks', params, ['Disks', Disk])
 
+    def get_security_status(self, vpc_id=None, group_ids=None):
+        """
+        Querying Security Group List returns the basic information about all
+              user-defined security groups.
+
+        :type  vpc_id: String
+        :param vpc_id: ID of a vpc to which an security group belongs. If it is
+            null, a vpc is selected by the system
+
+        :type group_ids: List
+        :param group_ids: Provides a list of security groups ids.
+
+        :return: A list of the total number of security groups,
+                 the ID of the VPC to which the security group belongs
+
+        """
+
+        params = {}
+        results = []
+        changed = False
+
+        if vpc_id:
+            self.build_list_params(params, vpc_id, 'VpcId')
+        if group_ids:
+            self.build_list_params(params, group_ids, 'SecurityGroupIds')
+
+        try:
+            results = self.get_status('DescribeSecurityGroups', params)
+            changed = True
+        except Exception as ex:
+            error_code = ex.error_code
+            error_msg = ex.message
+            results.append({"Error Code": error_code, "Error Message": error_msg})
+
+        return changed, results
+         
     def create_instance(self, image_id, instance_type, group_id=None, zone_id=None, instance_name=None,
                         description=None, internet_data=None, host_name=None, password=None, io_optimized=None,
                         system_disk=None, disks=None, vswitch_id=None, private_ip=None, count=None,
@@ -552,9 +587,46 @@ class ECSConnection(ACSQueryConnection):
                         error_msg = ex.message
                         results.append({"Error Code": error_code, "Error Message": error_msg})
 
-        if wait in ['yes', 'Yes', 'True', 'true'] and wait_timeout:
+        if wait.lower() in ['yes', 'true'] and wait_timeout:
             time.sleep(wait_timeout)
 
+        return changed, results
+
+    def modify_instance(self, attributes=None):
+        """
+        modify the instance attributes such as name, description, password and host_name
+
+        :type: list
+        :param attributes: A list of dictionary of instance attributes which includes
+            id, name, description, password and host_name
+        :return: A list of the instance_ids modified
+        """
+        results = []
+        changed = False
+        
+        if attributes:
+            for attribute in attributes:
+                if attribute:
+                    params = {}
+                    if 'id' in attribute:
+                        self.build_list_params(params, attribute['id'], 'InstanceId')
+                    if 'name' in attribute:
+                        self.build_list_params(params, attribute['name'], 'InstanceName')
+                    if 'description' in attribute:
+                        self.build_list_params(params, attribute['description'], 'Description')
+                    if 'password' in attribute:
+                        self.build_list_params(params, attribute['password'], 'Password')
+                    if 'host_name' in attribute:
+                        self.build_list_params(params, attribute['host_name'], 'HostName')
+
+                    try:
+                        result = self.get_status('ModifyInstanceAttribute', params)
+                        results.append(result)
+                        changed = True
+                    except Exception as ex:
+                        error_code = ex.error_code
+                        error_msg = ex.message
+                        results.append({"Error Code": error_code, "Error Message": error_msg})
         return changed, results
 
     def get_instance_status(self, zone_id=None, pagenumber=None, pagesize=None):
@@ -612,7 +684,6 @@ class ECSConnection(ACSQueryConnection):
         changed = False
         status = False
 
-        
         if not isinstance(instance_ids,list):
             changed = False
             results.append("Error Code: " + "Invalid DataType")
@@ -620,7 +691,6 @@ class ECSConnection(ACSQueryConnection):
             return changed, results
 
         instance_count = len(instance_ids)
-        json_obj = ''
         flag_fail = 0
         pass_cnt = 0
 
@@ -642,15 +712,15 @@ class ECSConnection(ACSQueryConnection):
                 results.append("Successfully added instance '" + str(
                     id_of_instance) + "' to security group " + str(group_id))
 
-                #Verifying whether operation got performed successfully
-                #3 attempts are used considering slow performance from server
+                # Verifying whether operation got performed successfully
+                # 3 attempts are used considering slow performance from server
                 attempts = 0
-                for i in range(0,10):
-                    if status == False and attempts < 10:
+                for i in range(0, 10):
+                    if not status and attempts < 10:
                         status = self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join')
-                        if status == True:
+                        if status:
                             pass_cnt = pass_cnt + 1
-                            break;
+                            break
                     attempts += 1  
                 success_instance_ids.append(id_of_instance)
                     
@@ -698,7 +768,6 @@ class ECSConnection(ACSQueryConnection):
             return changed, results
 
         instance_count = len(instance_ids)
-        json_obj = ''
         changed = False
         status = False
         
@@ -720,15 +789,15 @@ class ECSConnection(ACSQueryConnection):
                 results.append("Successfully removed instance " + str(
                     id_of_instance) + " from security group " + str(group_id))
 
-                #Verifying whether operation got performed successfully
-                #3 attempts are used considering slow performance from server
+                # Verifying whether operation got performed successfully
+                # 3 attempts are used considering slow performance from server
                 attempts = 0 
-                for i in range(0,10):
-                    if status == False and attempts < 10:
+                for i in range(0, 10):
+                    if not status and attempts < 10:
                         status = self.verify_join_remove_securitygrp(id_of_instance, group_id, 'remove')
-                        if status == True:
+                        if status:
                             pass_cnt = pass_cnt + 1
-                            break;
+                            break
                     attempts += 1  
                 success_instance_ids.append(id_of_instance)
 
@@ -784,8 +853,8 @@ class ECSConnection(ACSQueryConnection):
         except Exception as ex:
             done = False
 
-        return done   
-
+        return done    
+    
     def get_all_security_groups(self, group_ids=None, filters=None):
         """
         Get all security groups associated with your account in a region.
@@ -814,80 +883,6 @@ class ECSConnection(ACSQueryConnection):
             self.build_filter_params(params, filters)
         return self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
 
-    def modify_instance(self, attributes=None):
-        """
-        modify the instance attributes such as name, description, password and host_name
-
-        :type: list
-        :param attributes: A list of dictionary of instance attributes which includes
-            id, name, description, password and host_name
-        :return: A list of the instance_ids modified
-        """
-        results = []
-        changed = False
-        
-        if attributes:
-            for attribute in attributes:
-                if attribute:
-                    params = {}
-                    if 'id' in attribute:
-                        self.build_list_params(params, attribute['id'], 'InstanceId')
-                    if 'name' in attribute:
-                        self.build_list_params(params, attribute['name'], 'InstanceName')
-                    if 'description' in attribute:
-                        self.build_list_params(params, attribute['description'], 'Description')
-                    if 'password' in attribute:
-                        self.build_list_params(params, attribute['password'], 'Password')
-                    if 'host_name' in attribute:
-                        self.build_list_params(params, attribute['host_name'], 'HostName')
-                    
-
-                    try:
-                        result = self.get_status('ModifyInstanceAttribute', params)
-                        results.append(result)
-                        changed = True
-                    except Exception as ex:
-                        error_code = ex.error_code
-                        error_msg = ex.message
-                        results.append({"Error Code": error_code, "Error Message": error_msg})
-        return changed, results
-
-    def get_security_status(self, vpc_id=None, group_ids=None):
-        """
-        Querying Security Group List returns the basic information about all
-              user-defined security groups.
-
-        :type  vpc_id: String
-        :param vpc_id: ID of a vpc to which an security group belongs. If it is
-            null, a vpc is selected by the system
-
-        :type group_ids: List
-        :param group_ids: Provides a list of security groups ids.
-
-        :return: A list of the total number of security groups,
-                 the ID of the VPC to which the security group belongs
-
-                """
-
-        params = {}
-        results = []
-        changed = False 
-
-        if vpc_id:
-            self.build_list_params(params, vpc_id, 'VpcId')
-        if group_ids:
-            self.build_list_params(params, group_ids, 'SecurityGroupIds')        
-
-        try:
-            results = self.get_status('DescribeSecurityGroups', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
-
     def create_security_group(self, group_name=None, group_description=None, group_tags=None, vpc_id=None):
         """
         create and authorize security group in ecs
@@ -905,12 +900,6 @@ class ECSConnection(ACSQueryConnection):
 
         :type vpc_id: string
         :param vpc_id: The ID of the VPC to which the security group belongs
-
-        :type inbound_rules: list
-        :param inbound_rules: Inbound rules for authorization
-
-        :type outbound_rules: list
-        :param outbound_rules: Outbound rules for authorization
 
         :rtype: dict
         :return: Returns a dictionary of group information about
@@ -946,9 +935,6 @@ class ECSConnection(ACSQueryConnection):
                             'tag_value'], 'Tag' + str(tagno) + 'Value')
                     tagno = tagno + 1
 
-        # Client Token
-
-
         # CreateSecurityGroup method call, returns newly created security group id
         try:
             response = self.get_status('CreateSecurityGroup', params)
@@ -961,31 +947,27 @@ class ECSConnection(ACSQueryConnection):
             results.append("Following error occurred while creating Security Group")
             results.append("error Code: " + error_code)
             results.append("Message: " + msg)
-        '''else:
-            if inbound_rules or outbound_rules:
-                c, msg = self.authorize_security_group(security_group_id, inbound_rules=inbound_rules,
-                                                    outbound_rules=outbound_rules)
-                results.extend(msg)
-        '''
+
         return changed, security_group_id, results
 
     def authorize_security_group(self, security_group_id=None, inbound_rules=None, outbound_rules=None):
         """
-            authorize security group in ecs
+        authorize security group in ecs
 
-            :type security_group_id: string
-            :param group_name: The ID of the target security group
+        :type security_group_id: string
+        :param security_group_id: The ID of the target security group
 
-            :type rules: list
-            :param rules: rules for authorization
+        :type inbound_rules: list
+        :param inbound_rules: Inbound rules for authorization
 
-            :type rule_type: string
-            :param rule_type: Rule type like 'inbound' or 'outbound'
+        :type outbound_rules: list
+        :param outbound_rules: Outbound rules for authorization
 
-            :rtype: list
-           :return: Returns the successful message if all rules successfully authorized else returns details of failed authorization rules.
+        :rtype: list
+        :return: Returns the successful message if all rules successfully authorized else returns details of failed
+                    authorization rules.
 
-           Note: Use validate_sg_rules(rules) method for pre-defined basic validation before using this method.
+        Note: Use validate_sg_rules(rules) method for pre-defined basic validation before using this method.
         """
 
         # aliases for rule
@@ -1003,7 +985,6 @@ class ECSConnection(ACSQueryConnection):
             "inbound": inbound_rules,
             "outbound": outbound_rules,
         }
-
 
         api_group_id_param_name = {
             "inbound": "SourceGroupId",
@@ -1060,17 +1041,6 @@ class ECSConnection(ACSQueryConnection):
 
                     port_range = str(rule['port_range'])
 
-                    '''if ip_protocol in ("tcp", "udp"):
-
-                        if 'port_range' in rule:
-                            port_range = str(rule['port_range'])
-                        else:
-                            port_range = tcp_udp_default_port_range
-
-                    elif ip_protocol in ('icmp', 'gre', 'all'):
-                        port_range = other_default_port_range
-                    '''
-
                     self.build_list_params(params, port_range, 'PortRange')
 
                     if 'group_id' in rule:
@@ -1080,7 +1050,8 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, rule['cidr_ip'], api_cidr_ip_param_name.get(rule_type))
 
                     if 'group_owner_id' in rule:
-                        self.build_list_params(params, rule['group_owner_id'], api_group_owner_param_name.get(rule_type))
+                        self.build_list_params(params, rule['group_owner_id'],
+                                               api_group_owner_param_name.get(rule_type))
 
                     if 'policy' in rule:
                         self.build_list_params(params, rule['policy'], 'Policy')
@@ -1107,32 +1078,12 @@ class ECSConnection(ACSQueryConnection):
                         result_details.append(
                             'Error: ' + rule_type + ' rule authorization failed for protocol ' + ip_protocol +
                             ' with port range ' + port_range)
-                        # result_details.append("error Code: " + error_code)
-                        # result_details.append("Message: " + msg)
 
                 if success_rule_count == total_rules:
                     result_details.append(
                         rule_type + ' rule authorization successful for group id ' + security_group_id)
 
         return changed, inbound_failed_rules, outbound_failed_rules, result_details
-
-    def get_alias_value(self, dictionary, aliases):
-        """
-
-        :param dictionary:
-        :param param:
-        :param aliases:
-        :return:
-        """
-
-        if (dictionary and aliases) is not None:
-            for alias in aliases:
-                if alias in dictionary:
-                    return dictionary[alias]
-
-            return None
-        else:
-            return None
 
     def delete_security_group(self, group_ids):
         """
@@ -1162,8 +1113,6 @@ class ECSConnection(ACSQueryConnection):
                                 response = self.get_status('DeleteSecurityGroup', params)
                                 results.append(response)
                                 changed = True
-                    else:
-                        results.append({"Error Code": "SecurityGroupId does not exist", "Error Message": "SecurityGroupId does not exist"})
             except Exception as ex:
                 error_code = ex.error_code
                 error_msg = ex.message
@@ -1173,7 +1122,7 @@ class ECSConnection(ACSQueryConnection):
 
     def create_disk(self, zone_id, disk_name=None, description=None,
                     disk_category=None, size=None, disk_tags=None, 
-                    snapshot_id=None, count=None):
+                    snapshot_id=None):
         """
         create an disk in ecs
 
@@ -1211,9 +1160,6 @@ class ECSConnection(ACSQueryConnection):
         :type snapshot_id: integer
         :param snapshot_id: Snapshots are used to create the data disk
             After this parameter is specified, Size is ignored.
-
-        :type count: integer
-        :param count: Create No. of Instances
 
         :rtype: dict
         :return: Returns a dictionary of disk information
@@ -1255,7 +1201,6 @@ class ECSConnection(ACSQueryConnection):
                                 'tag_value'], 'Tag' + str(tag_no) + 'Value')
                             tag_no += 1                        
 
-       
         # Snapshot Id
         if snapshot_id:
             self.build_list_params(params, snapshot_id, 'SnapshotId')
@@ -1282,9 +1227,6 @@ class ECSConnection(ACSQueryConnection):
         :type disk_id: string
         :param disk_id: The disk ID in the cloud
 
-        :type  region_id: string
-        :param region_id: The region to which disk and instance both belong
-
         :type device: string
         :param device: the device name
 
@@ -1299,7 +1241,6 @@ class ECSConnection(ACSQueryConnection):
         changed = False
 
         id_of_instance = instance_id
-        disk_status = None
         disk_instance_id, disk_status, result_instance = self.retreive_instance_for_disk(disk_id)
 
         if disk_status:
@@ -1354,9 +1295,6 @@ class ECSConnection(ACSQueryConnection):
         """
         Method to detach a disk to instance
 
-        :type instance_id: dict
-        :param instance_id: ID of an Instance
-
         :type disk_id: dict
         :param disk_id: ID of Disk for attaching detaching disk
 
@@ -1366,8 +1304,8 @@ class ECSConnection(ACSQueryConnection):
         results = []
         changed = False
 
-        # region retreive InstanceId from DiskId
-        instance_id, disk_status, result_instance = self.retreive_instance_for_disk(disk_id)
+        # region retrieve InstanceId from DiskId
+        instance_id, disk_status, result_instance = self.retrieve_instance_for_disk(disk_id)
         
         if disk_status:
             if result_instance:
@@ -1410,9 +1348,9 @@ class ECSConnection(ACSQueryConnection):
 
         return changed, results, instance_id
 
-    def retreive_instance_for_disk(self, disk_id):
-        # method is used to retreive instance_id from disk_id, it is required in detach disk. 
-        # In detach disk instance id is retreived from disk, it is not taken from ansible.
+    def retrieve_instance_for_disk(self, disk_id):
+        # method is used to retrieve instance_id from disk_id, it is required in detach disk.
+        # In detach disk instance id is retrieved from disk, it is not taken from ansible.
         params = {}
         results = []
 
@@ -1459,16 +1397,6 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
         changed = False
-
-        # region retreive InstanceId from DiskId
-        #instance_id, disk_status, result_instance = self.retreive_instance_for_disk(disk_id)
-        
-        #if disk_status:
-        #    if str(disk_status).strip().lower() != 'available':
-        #        error_code = "Disk " + disk_id + " is already available"
-        #        error_msg = " The disk " + disk_id + " is already available, can not detach"
-        #        results.append({"Error Code :": error_code, "Error Message :": error_msg})
-        #        return changed, results
 
         # the disk to be deleted
         self.build_list_params(params, disk_id, 'DiskId')
@@ -1535,14 +1463,11 @@ class ECSConnection(ACSQueryConnection):
         results = []
         changed = False
         image_id = ''
-        image_state = ''
         request_id = ''
-
-        snapshot_results = []
 
         # the snapshot id for creating image
         if snapshot_id:
-        # Verifying progress of snapshot_id, snapshot_id should be 100% completed
+            # Verifying progress of snapshot_id, snapshot_id should be 100% completed
             snapshot_results, snapshot_progress ,snapshot_changed = self.get_snapshot_image(snapshot_id)
         
             if snapshot_results:
@@ -1576,7 +1501,6 @@ class ECSConnection(ACSQueryConnection):
         # specify the disk device mapping, An optional list of device hashes/dictionaries with custom configurations
         if disk_mapping:
             mapping_no = 1
-            snapshot_map_changed = False
             for mapping in disk_mapping:
                 if mapping:
                     if 'device' in mapping:
@@ -1588,7 +1512,8 @@ class ECSConnection(ACSQueryConnection):
                     if 'snapshot_id' in mapping:
                         self.build_list_params(params, mapping[
                             'snapshot_id'], 'DiskDeviceMapping.' + str(mapping_no) + '.SnapshotId')
-                        snapshot_map_results, snapshot_map_progress ,snapshot_map_changed = self.get_snapshot_image(mapping['snapshot_id'])
+                        snapshot_map_results, snapshot_map_progress ,snapshot_map_changed \
+                            = self.get_snapshot_image(mapping['snapshot_id'])
                         if snapshot_map_results:
                             if 'error code' in str(snapshot_map_results).lower():
                                 results = snapshot_map_results
@@ -1597,8 +1522,7 @@ class ECSConnection(ACSQueryConnection):
                         if not snapshot_map_changed:
                             results.append({"Error Code": "Snapshot.NotReady", "Error Message": "snapshot is not ready"})
                             return changed, image_id, results, request_id
-    
-                        
+
                     mapping_no += 1
 
         # set the instance tags, maximum 5 tags
@@ -1617,8 +1541,6 @@ class ECSConnection(ACSQueryConnection):
         try:
             response = self.get_status('CreateImage', params)
 
-            flag_img_avail = False
-            counter = 0
             if response:
                 image_id = response['ImageId']
                 request_id = response['RequestId']
@@ -1627,14 +1549,12 @@ class ECSConnection(ACSQueryConnection):
             if launch_permission and image_id:
                 sharing_changed, image_sharing_results = self.set_launch_perms(launch_permission,image_id)
 
-
             if wait:
-                if wait in ['yes', 'Yes', 'True', 'true']:
+                if wait.lower() in ['yes', 'true']:
                     if not wait_timeout:
                         wait_timeout = 300
                     time.sleep(wait_timeout)
 
-            
             results.append("Image creation successful")
 
             changed = True
@@ -1652,7 +1572,7 @@ class ECSConnection(ACSQueryConnection):
             results.append({"Error Code": error_code, "Error Message": error_msg})
         return changed, image_id, results, request_id
 
-    def set_launch_perms(self, launch_permission, image_id, operation_flag=True):
+    def set_launch_perms(self, launch_permission, image_id):
         """
         To set launch permissions
         i.e user accounts which have rights on image
@@ -1661,16 +1581,12 @@ class ECSConnection(ACSQueryConnection):
         :param launch_permission: list of userids, max 10 permitted at a time
 
         :type: image_id: string
-        :param image_id: imageid to which to add user rights
+        :param image_id: ImageID to which to add user rights
 
-        :type: operation_flag: bool
-        :param operation_flag: True : add acount, False: remove account
-
-        :return:
+        :rtype:
         """
         params = {}
         results = []
-        changed = False
 
         if not image_id:
             results.append({"Error Code": "image_id is mandatory", "Error Message": "image_id is mandatory"})
@@ -1679,15 +1595,14 @@ class ECSConnection(ACSQueryConnection):
         self.build_list_params(params, image_id, 'ImageId')
         if launch_permission:
             user_account_list = launch_permission
-            #launch_permission['user_ids']
+            # launch_permission['user_ids']
             if user_account_list:
                 user_no = 1
                 for account in range(0, len(user_account_list)):
-                    self.build_list_params(params, user_account_list[account
-                    ], 'AddAccount.' + str(user_no))
+                    self.build_list_params(params, user_account_list[account], 'AddAccount.' + str(user_no))
                     user_no += 1
                     if user_no == 11:
-                        break;
+                        break
         try:
             response = self.get_status('ModifyImageSharePermission', params)
             changed = True
@@ -1700,14 +1615,14 @@ class ECSConnection(ACSQueryConnection):
             changed = False
         return changed, results
 
-
     def delete_image(self, image_id):
         """
         Delete image , delete image inside particular region.
 
         :type image_id: dict
-        :param image_id: ID of an Image        
-        :return: Return status of Operation
+        :param image_id: ID of an Image
+
+        :rtype: Return status of Operation
 
         """
         params = {}
@@ -1739,16 +1654,15 @@ class ECSConnection(ACSQueryConnection):
     def get_snapshot_image(self, snapshot_id):
         params = {}
         results = []
-        status = ''
         progress = ''
         changed = False
         counter = 0
         try:
-            while changed == False:
+            while changed:
                 self.build_list_params(params, [snapshot_id], 'SnapshotIds')
 
                 if counter > 20:
-                    break;
+                    break
                 obtained_results = self.get_status('DescribeSnapshots', params)
                 counter += 1
                 if obtained_results and len(obtained_results['Snapshots']['Snapshot']) > 0:
@@ -1760,23 +1674,13 @@ class ECSConnection(ACSQueryConnection):
                     else:
                         changed = True
                         progress = '100'
-                        break;
+                        break
                 else:
                     results.append({"Error Code": "Invalid.SnapshotId", "Error Message": "The snapshot id not found"})
-                    break;
+                    break
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
 
         return results, progress, changed
-
-
-
-
-
-
-
-
-
-
