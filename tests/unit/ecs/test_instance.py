@@ -79,6 +79,149 @@ MANAGE_INSTANCE = '''
 }
 '''
 
+CREATE_INSTANCE = '''
+{
+    "InstanceId":"i-2zeg0900kzwn7dpo7zrb",
+    "RequestId":"9206E7A7-BFD5-457F-9173-91CF4525DE21"
+}
+'''
+
+MODIFY_INSTANCE = '''
+{
+
+        "changed": true,
+        "instance_ids": ["i-rj97hhf9ue16ewoged75"],
+        "result": [
+            {
+                "RequestId": "855267EE-BC10-49BB-847A-2A564B63178C"
+            }
+        ]
+}
+'''
+
+GET_INSTANCE = '''
+{
+    "PageNumber": 1,
+    "InstanceStatuses":
+         {"InstanceStatus": [
+            {"Status": "Running", "InstanceId": "i-2zehcagr3vt06iyir7hc"},
+            {"Status": "Running", "InstanceId": "i-2zedup3d5p01daky1622"},
+            {"Status": "Stopped", "InstanceId": "i-2zei2zq55lx87st85x2j"},
+            {"Status": "Running", "InstanceId": "i-2zeaoq67u62vmkbo71o7"},
+            {"Status": "Running", "InstanceId": "i-2ze5wl5aeq8kbblmjsx1"}
+         ]},
+        "TotalCount": 9,
+        "PageSize": 5,
+        "RequestId": "5D464158-D291-4C69-AA9E-84839A669B9D"
+}
+'''
+
+JOIN_GROUP = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
+}
+'''
+
+LEAVE_GROUP = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
+}
+'''
+
+DETACH_DISK = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
+    "TotalCount": 1,
+    "Disks": {
+        "Disk": [
+            {
+                "Category": "cloud_efficiency",
+                "DeleteWithInstance": true,
+                "AttachedTime": "2017-01-18T07:20:43Z",
+                "CreationTime": "2017-01-18T07:20:42Z",
+                "ExpiredTime": "2999-09-08T16:00Z",
+                "EnableAutoSnapshot": true,
+                "Type": "system",
+                "DeleteAutoSnapshot": true,
+                "Status": "In_use",
+                "DiskName": "",
+                "Description": "",
+                "Tags": {
+                    "Tag": []
+                },
+                "InstanceId": "i-2zehwdby6fkuv403fc6j",
+                "RegionId": "cn-beijing",
+                "ImageId": "m-256u3s01x",
+                "SourceSnapshotId": "",
+                "DiskId": "d-2ze9p2pzpwjqqx0burf5",
+                "ProductCode": "jxsc000008",
+                "AutoSnapshotPolicyId": "",
+                "OperationLocks": {
+                    "OperationLock": []
+                },
+                "ZoneId": "cn-beijing-b",
+                "Device": "/dev/xvda",
+                "EnableAutomatedSnapshotPolicy": false,
+                "Portable": false,
+                "DiskChargeType": "PostPaid",
+                "DetachedTime": "",
+                "Size": 40
+            }
+    ]
+    }
+}
+'''
+
+ATTACH_DISK = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
+    "TotalCount": 1,
+    "Disks": {
+        "Disk": [
+            {
+                "Category": "cloud_efficiency",
+                "DeleteWithInstance": true,
+                "AttachedTime": "2017-01-18T07:20:43Z",
+                "CreationTime": "2017-01-18T07:20:42Z",
+                "ExpiredTime": "2999-09-08T16:00Z",
+                "EnableAutoSnapshot": true,
+                "Type": "system",
+                "DeleteAutoSnapshot": true,
+                "Status": "available",
+                "DiskName": "",
+                "Description": "",
+                "Tags": {
+                    "Tag": []
+                },
+                "InstanceId": "i-2zehwdby6fkuv403fc6j",
+                "RegionId": "cn-beijing",
+                "ImageId": "m-256u3s01x",
+                "SourceSnapshotId": "",
+                "DiskId": "d-2ze9p2pzpwjqqx0burf5",
+                "ProductCode": "jxsc000008",
+                "AutoSnapshotPolicyId": "",
+                "OperationLocks": {
+                    "OperationLock": []
+                },
+                "ZoneId": "cn-beijing-b",
+                "Device": "/dev/xvda",
+                "EnableAutomatedSnapshotPolicy": false,
+                "Portable": false,
+                "DiskChargeType": "PostPaid",
+                "DetachedTime": "",
+                "Size": 40
+            }
+    ]
+    }
+}
+'''
+
+DELETE_DISK = '''
+{
+    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
+}
+'''
+
 Create_Security_Group = '''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
@@ -112,13 +255,6 @@ DELETE_SECURITY_GROUP = '''
          "VpcId":""
          }]
     }
-}
-'''
-
-CREATE_INSTANCE = '''
-{
-    "InstanceId":"i-2zeg0900kzwn7dpo7zrb",
-    "RequestId":"9206E7A7-BFD5-457F-9173-91CF4525DE21"
 }
 '''
 
@@ -181,137 +317,12 @@ GET_SECURITY_STATUS = '''
 
 '''
 
-MODIFY_INSTANCE = '''
-{
-
-        "changed": true,
-        "instance_ids": ["i-rj97hhf9ue16ewoged75"],
-        "result": [
-            {
-                "RequestId": "855267EE-BC10-49BB-847A-2A564B63178C"
-            }
-        ]
-}
-'''
-
-GET_INSTANCE = '''
-{
-    "PageNumber": 1,
-    "InstanceStatuses":
-         {"InstanceStatus": [
-            {"Status": "Running", "InstanceId": "i-2zehcagr3vt06iyir7hc"},
-            {"Status": "Running", "InstanceId": "i-2zedup3d5p01daky1622"},
-            {"Status": "Stopped", "InstanceId": "i-2zei2zq55lx87st85x2j"},
-            {"Status": "Running", "InstanceId": "i-2zeaoq67u62vmkbo71o7"},
-            {"Status": "Running", "InstanceId": "i-2ze5wl5aeq8kbblmjsx1"}
-         ]},
-        "TotalCount": 9,
-        "PageSize": 5,
-        "RequestId": "5D464158-D291-4C69-AA9E-84839A669B9D"
-}
-'''
-
-JOIN_GROUP = '''
-{
-    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
-}
-'''
-
-LEAVE_GROUP = '''
-{
-    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
-}
-'''
-
 CREATE_DISK = '''
 {
 
     "changed": true,
     "DiskId": "d-rj91n5w6koukwqqkxsf8",
     "result": ["Disk Creation Successful"]
-}
-'''
-
-ATTACH_DISK = '''
-{
-    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
-}
-'''
-
-DETACH_DISK = '''
-{
-    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
-    "Disks": {
-        "Disk": [
-            {
-                "Category": "cloud_efficiency",
-                "DeleteWithInstance": true,
-                "AttachedTime": "2017-01-18T07:20:43Z",
-                "CreationTime": "2017-01-18T07:20:42Z",
-                "ExpiredTime": "2999-09-08T16:00Z",
-                "EnableAutoSnapshot": true,
-                "Type": "system",
-                "DeleteAutoSnapshot": true,
-                "Status": "In_use",
-                "DiskName": "",
-                "Description": "",
-                "Tags": {
-                    "Tag": []
-                },
-                "InstanceId": "i-2zehwdby6fkuv403fc6j",
-                "RegionId": "cn-beijing",
-                "ImageId": "m-256u3s01x",
-                "SourceSnapshotId": "",
-                "DiskId": "d-2ze9p2pzpwjqqx0burf5",
-                "ProductCode": "jxsc000008",
-                "AutoSnapshotPolicyId": "",
-                "OperationLocks": {
-                    "OperationLock": []
-                },
-                "ZoneId": "cn-beijing-b",
-                "Device": "/dev/xvda",
-                "EnableAutomatedSnapshotPolicy": false,
-                "Portable": false,
-                "DiskChargeType": "PostPaid",
-                "DetachedTime": "",
-                "Size": 40
-            }
-    ]
-    }
-}
-'''
-
-DELETE_DISK = '''
-{
-    "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
-}
-'''
-
-CREATE_IMAGE = '''
-{
-    "RequestId": "8ECE78F4-9E81-46CD-9340-0D69CFAAA315",
-    "ImageId": "m-j6cb0rw4eso5jsc6927n",
-    "PageSize": 10,
-    "TotalCount": 1,
-    "PageNumber": 1,
-    "Snapshots": {
-        "Snapshot": [{
-            "Status": "accomplished",
-            "ProductCode": "",
-            "Description": "Created s-j6ccfgptbi05ha1csvw9 from i-j6c2tbw6nsau39ippm94",
-            "Tags": {
-                "Tag": []
-            },
-            "SnapshotName": "",
-            "SourceDiskType": "system",
-            "CreationTime": "2017-01-27T11:50:58Z",
-            "SourceDiskId": "d-j6ccbroi7rj23c3de0s4",
-            "SourceDiskSize": 40,
-            "Progress": "100%",
-            "Usage": "image",
-            "SnapshotId": "s-j6ccfgptbi05ha1csvw9"
-        }]
-    }
 }
 '''
 
@@ -365,6 +376,34 @@ DELETE_IMAGE = '''
 }
 '''
 
+CREATE_IMAGE = '''
+{
+    "RequestId": "8ECE78F4-9E81-46CD-9340-0D69CFAAA315",
+    "ImageId": "m-j6cb0rw4eso5jsc6927n",
+    "PageSize": 10,
+    "TotalCount": 1,
+    "PageNumber": 1,
+    "Snapshots": {
+        "Snapshot": [{
+            "Status": "accomplished",
+            "ProductCode": "",
+            "Description": "Created s-j6ccfgptbi05ha1csvw9 from i-j6c2tbw6nsau39ippm94",
+            "Tags": {
+                "Tag": []
+            },
+            "SnapshotName": "",
+            "SourceDiskType": "system",
+            "CreationTime": "2017-01-27T11:50:58Z",
+            "SourceDiskId": "d-j6ccbroi7rj23c3de0s4",
+            "SourceDiskSize": 40,
+            "Progress": "100%",
+            "Usage": "image",
+            "SnapshotId": "s-j6ccfgptbi05ha1csvw9"
+        }]
+    }
+}
+'''
+
 
 class TestDescribeInstances(ACSMockServiceTestCase):
     connection_class = ECSConnection
@@ -383,7 +422,6 @@ class TestDescribeInstances(ACSMockServiceTestCase):
         self.assertEqual(len(instances), 1)
         instance = instances[0]
         self.assertEqual(instance.id, 'i-94dehop6n')
-        print 'group_id:', instance.group_id
         self.assertEqual(instance.group_id, 'sg-94kd0cyg0')
         self.assertEqual(instance.public_ip, '120.25.13.106')
         self.assertEqual(instance.tags, {"xz_test": "1.20", "xz_test_2": "1.20"})
@@ -436,66 +474,10 @@ class TestManageInstances(ACSMockServiceTestCase):
         self.assertIn(result[0], self.instance_ids)
 
 
-class TestCreateAuthorizeSecurityGroup(ACSMockServiceTestCase):
-    connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
-    region_id = "cn-beijing"
-
-    group_tags = [
-        {
-            "tag_key": "create_test_1",
-            "tag_value": "0.01"
-        },
-        {
-            "tag_key": "create_test_2",
-            "tag_value": "0.02"
-        }
-    ]
-    inbound_rules = [
-        {
-            "proto": "all",
-            "from_port": "-1",
-            "to_port": "-1",
-            "cidr_ip": "10.159.6.18/12",
-        }
-    ]
-
-    outbound_rules = [
-        {
-            "proto": "tcp",
-            "from_port": "2",
-            "to_port": "100",
-            "cidr_ip": "10.159.6.18/12",
-        }
-    ]
-
-    def default_body(self):
-        return Create_Security_Group
-
-    def test_create_security_grp(self):
-        self.set_http_response(status_code=200)
-        changed, security_group_id, result = self.service_connection.create_security_group(group_name="Blue123",
-                                                                                           group_description="TestDataforBlue",
-                                                                                           group_tags=self.group_tags,
-                                                                                           inbound_rules=self.inbound_rules,
-                                                                                           outbound_rules=self.outbound_rules)
-
-        self.assertEqual(security_group_id, u'sg-2ze95f8a2ni6bb2wql3b')
-        rs = result[0]
-        self.assertEqual(rs, u'Security Group Creation Successful')
-        rs = result[1]
-        self.assertEqual(rs, u'inbound rule authorization successful for group id sg-2ze95f8a2ni6bb2wql3b')
-        rs = result[2]
-        self.assertEqual(rs, u'outbound rule authorization successful for group id sg-2ze95f8a2ni6bb2wql3b')
-
-
 class TestDeleteSecurityGroup(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     group_ids = [
-        'sg-rj9elk6bkehdlyxhm79f', 'sg-rj90ienb9kpbgqv6x4qe'
+        'sg-rj9606ryhhy2c3t8ljtx'
     ]
     region = 'us-west-1'
 
@@ -511,8 +493,6 @@ class TestDeleteSecurityGroup(ACSMockServiceTestCase):
 class TestGetSecurityStatus(ACSMockServiceTestCase):
     connection_class = ECSConnection
 
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     region = 'cn-beijing'
     state = 'getinfo'
 
@@ -521,32 +501,56 @@ class TestGetSecurityStatus(ACSMockServiceTestCase):
 
     def test_get_security_status(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.get_security_status(vpc_id=None, group_id=None)
+        changed, result = self.service_connection.get_security_status(vpc_id=None, group_ids=None)
 
         self.assertEqual(result[u'RequestId'], "2076C42F-7E15-4F69-926F-C404E6A2F0DD")
 
 
+class TestCreateAuthorizeSecurityGroup(ACSMockServiceTestCase):
+    connection_class = ECSConnection
+    region_id = "cn-beijing"
+
+    group_tags = [
+        {
+            "tag_key": "create_test_1",
+            "tag_value": "0.01"
+        },
+        {
+            "tag_key": "create_test_2",
+            "tag_value": "0.02"
+        }
+    ]
+
+    def default_body(self):
+        return Create_Security_Group
+
+    def test_create_security_grp(self):
+        self.set_http_response(status_code=200)
+        changed, security_group_id, result = self.service_connection.create_security_group(
+            group_name="Blue123", group_description="TestDataforBlue", group_tags=self.group_tags)
+
+        self.assertEqual(security_group_id, u'sg-2ze95f8a2ni6bb2wql3b')
+        rs = result[0]
+        self.assertEqual(rs, u'Security Group Creation Successful')
+
+
 class TestAuthorizeSecurityGroup(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     region_id = "cn-beijing"
     security_group_id = 'sg-2ze95f8a2ni6bb2wql3b'
 
     inbound_rules = [
         {
-            "proto": "all",
-            "from_port": "-1",
-            "to_port": "-1",
+            "ip_protocol": "all",
+            "port_range": "-1/-1",
             "cidr_ip": "10.159.6.18/12",
         }
     ]
 
     outbound_rules = [
         {
-            "proto": "tcp",
-            "from_port": "2",
-            "to_port": "100",
+            "ip_protocol": "tcp",
+            "port_range": "2/100",
             "cidr_ip": "10.159.6.18/12",
         }
     ]
@@ -556,9 +560,10 @@ class TestAuthorizeSecurityGroup(ACSMockServiceTestCase):
 
     def test_authorize_security_grp(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.authorize_security_group(security_group_id=self.security_group_id,
-                                                                           inbound_rules=self.inbound_rules,
-                                                                           outbound_rules=self.outbound_rules)
+        changed, inbound_failed_rules, outbound_failed_rules, result = self.service_connection.authorize_security_group(
+            security_group_id=self.security_group_id,
+            inbound_rules=self.inbound_rules,
+            outbound_rules=self.outbound_rules)
         rs = result[0]
         self.assertEqual(rs, u'inbound rule authorization successful for group id sg-2ze95f8a2ni6bb2wql3b')
         rs = result[1]
@@ -630,22 +635,29 @@ class TestCreateInstance(ACSMockServiceTestCase):
 
     def test_create_instance(self):
         self.set_http_response(status_code=200)
-        result = self.service_connection.create_instance(image_id=self.image_id, instance_type=self.instance_type,
-                                                         group_id=self.group_id, zone_id=self.zone_id,
-                                                         instance_name=self.instance_name, description=self.description,
-                                                         internet_data=self.internet_data, host_name=self.host_name,
-                                                         password=self.password, io_optimized=self.io_optimized,
-                                                         system_disk=self.system_disk, disks=self.disks,
-                                                         vswitch_id=self.vswitch_id, private_ip=self.private_ip,
-                                                         count=self.count, allocate_public_ip=self.allocate_public_ip,
-                                                         bind_eip=self.bind_eip,
-                                                         instance_charge_type=self.instance_charge_type,
-                                                         period=self.period, auto_renew=self.auto_renew,
-                                                         auto_renew_period=self.auto_renew_period,
-                                                         instance_tags=self.instance_tags, ids=self.ids, wait=self.wait,
-                                                         wait_timeout=self.wait_timeout)
-        self.assertEqual(len(result[1]), self.count)
-        self.assertEqual(result[1][0]['InstanceId'], u'i-2zeg0900kzwn7dpo7zrb')
+        changed, result = self.service_connection.create_instance(image_id=self.image_id,
+                                                                  instance_type=self.instance_type,
+                                                                  group_id=self.group_id, zone_id=self.zone_id,
+                                                                  instance_name=self.instance_name,
+                                                                  description=self.description,
+                                                                  internet_data=self.internet_data,
+                                                                  host_name=self.host_name, password=self.password,
+                                                                  io_optimized=self.io_optimized,
+                                                                  system_disk=self.system_disk, disks=self.disks,
+                                                                  vswitch_id=self.vswitch_id,
+                                                                  private_ip=self.private_ip,
+                                                                  count=self.count,
+                                                                  allocate_public_ip=self.allocate_public_ip,
+                                                                  bind_eip=self.bind_eip,
+                                                                  instance_charge_type=self.instance_charge_type,
+                                                                  period=self.period, auto_renew=self.auto_renew,
+                                                                  auto_renew_period=self.auto_renew_period,
+                                                                  instance_tags=self.instance_tags,
+                                                                  ids=self.ids, wait=self.wait,
+                                                                  wait_timeout=self.wait_timeout)
+        if changed is True:
+            self.assertEqual(len(result), self.count)
+            self.assertEqual(result[0]['instance_id'], u'i-2zeg0900kzwn7dpo7zrb')
 
 
 class TestModifyInstance(ACSMockServiceTestCase):
@@ -690,8 +702,6 @@ class TestGetInstance(ACSMockServiceTestCase):
 
 class TestJoinSecGrp(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     instance_ids = ["i-2zehfxz81ar5kvptw8b1"]
     group_id = 'sg-2zeewmie535ht7d90cki'
     region = 'cn-beijing'
@@ -703,8 +713,8 @@ class TestJoinSecGrp(ACSMockServiceTestCase):
 
     def test_join_grp(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.join_security_group(instance_ids=self.instance_ids,
-                                                                      group_id=self.group_id)
+        changed, result, success_instance_ids, failed_instance_ids = self.service_connection.join_security_group(
+            instance_ids=self.instance_ids, group_id=self.group_id)
         res = ''
         if len(result) == 1:
             res = "success"
@@ -714,8 +724,6 @@ class TestJoinSecGrp(ACSMockServiceTestCase):
 
 class TestLeaveSecGrp(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     instance_ids = ["i-j6c5txh3q0wivxt5m807"]
     group_id = 'sg-j6c34iujuqbw29zpd53u'
     region = 'cn-hongkong'
@@ -727,8 +735,8 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
 
     def test_leave_grp(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.leave_security_group(instance_ids=self.instance_ids,
-                                                                       group_id=self.group_id)
+        changed, result, success_instance_ids, failed_instance_ids = self.service_connection.leave_security_group(
+            instance_ids=self.instance_ids, group_id=self.group_id)
         res = ''
         if len(result) == 1:
             res = "success"
@@ -739,14 +747,11 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
 class TestCreateDisk(ACSMockServiceTestCase):
     connection_class = ECSConnection
 
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     region = 'us-west-1'
     disk_category = 'cloud'
     zone_id = 'us-west-1a'
     disk_name = 'aspen'
     size = 20
-    count = 1
     state = 'present'
 
     def default_body(self):
@@ -756,9 +761,8 @@ class TestCreateDisk(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         changed, disk_id, result = self.service_connection.create_disk(zone_id=self.zone_id, disk_name=self.disk_name,
                                                                        description=None,
-                                                                       disk_category=self.disk_category,
-                                                                       size=self.size, disk_tags=None, snapshot_id=None,
-                                                                       count=None)
+                                                                       disk_category=self.disk_category, size=self.size,
+                                                                       disk_tags=None, snapshot_id=None)
 
         self.assertEqual(disk_id, u'd-rj91n5w6koukwqqkxsf8')
         rs = result[0]
@@ -767,8 +771,6 @@ class TestCreateDisk(ACSMockServiceTestCase):
 
 class TestAttachDisk(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     instance_ids = ["i-j6c5txh3q0wivxt5m807"]
     disk_id = 'd-j6cc9ssgxbkjdf55w8p7'
     region = 'cn-hongkong'
@@ -784,6 +786,7 @@ class TestAttachDisk(ACSMockServiceTestCase):
         changed, result = self.service_connection.attach_disk(disk_id=self.disk_id, instance_id=self.instance_ids,
                                                               device=self.device,
                                                               delete_with_instance=self.delete_with_instance)
+
         self.assertEqual(result[0]['RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
 
 
@@ -815,13 +818,11 @@ class TestDeleteDisk(ACSMockServiceTestCase):
         if changed is True:
             self.assertEqual(result[u'RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
         else:
-            self.assertEqual(result[0], {'Error Message': 'Disk not exist'})
+            self.assertEqual(result[0], {'Error Code:': 'InvalidDiskId.NotFound', 'Error Message:': 'Disk not exist'})
 
 
 class TestCreateImage(ACSMockServiceTestCase):
     connection_class = ECSConnection
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     region_id = 'cn-hongkong'
     snapshot_id = 's-j6cjdk51ejf0mtdnb7ba'
     image_name = 'testimage4'
@@ -850,8 +851,6 @@ class TestCreateImage(ACSMockServiceTestCase):
 class TestDeleteImage(ACSMockServiceTestCase):
     connection_class = ECSConnection
 
-    acs_access_key = 'xxxxxxxxxxx'
-    acs_secret_access_key = 'xxxxxxxxxxx'
     image_id = 'm-j6chvbnmr7lr6tg9276s'
     region = 'cn-hongkong'
     state = 'absent'
@@ -863,3 +862,15 @@ class TestDeleteImage(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.delete_image(image_id=self.image_id)
         self.assertEqual(result[0][u'RequestId'], "EB62BD82-B468-4CDC-BF97-91C9A97996FA")
+
+
+
+
+
+
+
+
+
+
+
+
