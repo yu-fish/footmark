@@ -158,7 +158,7 @@ class ACSQueryConnection(ACSAuthConnection):
             raise self.ResponseError(response[0], body)
         elif response[0] in (200, 201):
             footmark.log.info('status= %s ; body= %s' % (response[0], body))
-            # return 'success'
+            #return 'success'
             return json.loads(body)
         else:
             footmark.log.error('%s %s' % (response[0], body))

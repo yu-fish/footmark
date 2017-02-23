@@ -88,7 +88,7 @@ CREATE_INSTANCE = '''
 
 MODIFY_INSTANCE = '''
 {
-
+       
         "changed": true,
         "instance_ids": ["i-rj97hhf9ue16ewoged75"],
         "result": [
@@ -176,7 +176,7 @@ ATTACH_DISK = '''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
     "TotalCount": 1,
-    "Disks": {
+    "Disks": {        
         "Disk": [
             {
                 "Category": "cloud_efficiency",
@@ -219,10 +219,10 @@ ATTACH_DISK = '''
 DELETE_DISK = '''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D"
-}
+} 
 '''
 
-Create_Security_Group = '''
+Create_Security_Group ='''
 {
     "RequestId": "AF3991A3-5203-4F83-8FAD-FDC1253AF15D",
     "SecurityGroupId": "sg-2ze95f8a2ni6bb2wql3b"
@@ -319,13 +319,13 @@ GET_SECURITY_STATUS = '''
 
 CREATE_DISK = '''
 {
-
+     
     "changed": true,
     "DiskId": "d-rj91n5w6koukwqqkxsf8",
     "result": ["Disk Creation Successful"]
 }
 '''
-
+  
 DELETE_IMAGE = '''
 {
     "PageSize": 10,
@@ -474,16 +474,16 @@ class TestManageInstances(ACSMockServiceTestCase):
         self.assertIn(result[0], self.instance_ids)
 
 
-class TestDeleteSecurityGroup(ACSMockServiceTestCase):
+class TestDeleteSecurityGroup(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     group_ids = [
-        'sg-rj9606ryhhy2c3t8ljtx'
-    ]
+                  'sg-rj9606ryhhy2c3t8ljtx'
+                 ]
     region = 'us-west-1'
-
+    
     def default_body(self):
         return DELETE_SECURITY_GROUP
-
+    
     def test_delete_security_grp(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.delete_security_group(group_ids=self.group_ids)
@@ -492,7 +492,7 @@ class TestDeleteSecurityGroup(ACSMockServiceTestCase):
 
 class TestGetSecurityStatus(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
+   
     region = 'cn-beijing'
     state = 'getinfo'
 
@@ -502,7 +502,7 @@ class TestGetSecurityStatus(ACSMockServiceTestCase):
     def test_get_security_status(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.get_security_status(vpc_id=None, group_ids=None)
-
+        
         self.assertEqual(result[u'RequestId'], "2076C42F-7E15-4F69-926F-C404E6A2F0DD")
 
 
@@ -561,9 +561,9 @@ class TestAuthorizeSecurityGroup(ACSMockServiceTestCase):
     def test_authorize_security_grp(self):
         self.set_http_response(status_code=200)
         changed, inbound_failed_rules, outbound_failed_rules, result = self.service_connection.authorize_security_group(
-            security_group_id=self.security_group_id,
-            inbound_rules=self.inbound_rules,
-            outbound_rules=self.outbound_rules)
+                                                                            security_group_id=self.security_group_id,
+                                                                           inbound_rules=self.inbound_rules,
+                                                                           outbound_rules=self.outbound_rules)
         rs = result[0]
         self.assertEqual(rs, u'inbound rule authorization successful for group id sg-2ze95f8a2ni6bb2wql3b')
         rs = result[1]
@@ -580,10 +580,10 @@ class TestCreateInstance(ACSMockServiceTestCase):
     instance_name = "MyInstance"
     description = None
     internet_data = {
-        'charge_type': 'PayByTraffic',
-        'max_bandwidth_in': 200,
-        'max_bandwidth_out': 0
-    }
+                        'charge_type': 'PayByTraffic',
+                        'max_bandwidth_in': 200,
+                        'max_bandwidth_out': 0
+                    }
 
     host_name = None
     password = None
@@ -614,7 +614,7 @@ class TestCreateInstance(ACSMockServiceTestCase):
     instance_charge_type = None
     period = None
     auto_renew = False
-    auto_renew_period = None
+    auto_renew_period =None
     instance_tags = [
         {
             "tag_key": "create_test_1",
@@ -628,11 +628,11 @@ class TestCreateInstance(ACSMockServiceTestCase):
     ids = None
     count = 1
     wait = True
-    wait_timeout = 60
-
+    wait_timeout = 60    
+    
     def default_body(self):
         return CREATE_INSTANCE
-
+                                                                    
     def test_create_instance(self):
         self.set_http_response(status_code=200)
         changed, result = self.service_connection.create_instance(image_id=self.image_id,
@@ -677,13 +677,13 @@ class TestModifyInstance(ACSMockServiceTestCase):
 
     def test_modify_instance(self):
         self.set_http_response(status_code=200)
-        changed, result = self.service_connection.modify_instance(attributes=self.attributes)
+        changed, result = self.service_connection.modify_instance(attributes=self.attributes)                  
         self.assertEqual(result[0]['instance_ids'], [u'i-rj97hhf9ue16ewoged75'])
 
 
 class TestGetInstance(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
+   
     region_id = "cn-beijing"
     pagenumber = 1
     pagesize = 5
@@ -695,12 +695,12 @@ class TestGetInstance(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         result = self.service_connection.get_instance_status(zone_id=None, pagenumber=self.pagenumber,
                                                              pagesize=self.pagesize)
-
+        
         self.assertEqual(result[1][u'PageNumber'], self.pagenumber)
         self.assertEqual(result[1][u'PageSize'], self.pagesize)
 
 
-class TestJoinSecGrp(ACSMockServiceTestCase):
+class TestJoinSecGrp(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     instance_ids = ["i-2zehfxz81ar5kvptw8b1"]
     group_id = 'sg-2zeewmie535ht7d90cki'
@@ -715,14 +715,14 @@ class TestJoinSecGrp(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         changed, result, success_instance_ids, failed_instance_ids = self.service_connection.join_security_group(
             instance_ids=self.instance_ids, group_id=self.group_id)
-        res = ''
+        res=''
         if len(result) == 1:
             res = "success"
         else:
             res = "fail"
 
 
-class TestLeaveSecGrp(ACSMockServiceTestCase):
+class TestLeaveSecGrp(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     instance_ids = ["i-j6c5txh3q0wivxt5m807"]
     group_id = 'sg-j6c34iujuqbw29zpd53u'
@@ -737,7 +737,7 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
         self.set_http_response(status_code=200)
         changed, result, success_instance_ids, failed_instance_ids = self.service_connection.leave_security_group(
             instance_ids=self.instance_ids, group_id=self.group_id)
-        res = ''
+        res=''
         if len(result) == 1:
             res = "success"
         else:
@@ -746,11 +746,11 @@ class TestLeaveSecGrp(ACSMockServiceTestCase):
 
 class TestCreateDisk(ACSMockServiceTestCase):
     connection_class = ECSConnection
-
-    region = 'us-west-1'
+   
+    region =  'us-west-1'  
     disk_category = 'cloud'
     zone_id = 'us-west-1a'
-    disk_name = 'aspen'
+    disk_name = 'aspen'    
     size = 20
     state = 'present'
 
@@ -766,10 +766,10 @@ class TestCreateDisk(ACSMockServiceTestCase):
 
         self.assertEqual(disk_id, u'd-rj91n5w6koukwqqkxsf8')
         rs = result[0]
-        self.assertEqual(rs, u'Disk Creation Successful')
+        self.assertEqual(rs, u'Disk Creation Successful')    
 
 
-class TestAttachDisk(ACSMockServiceTestCase):
+class TestAttachDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     instance_ids = ["i-j6c5txh3q0wivxt5m807"]
     disk_id = 'd-j6cc9ssgxbkjdf55w8p7'
@@ -777,7 +777,7 @@ class TestAttachDisk(ACSMockServiceTestCase):
     device = None
     delete_with_instance = None
     state = 'present'
-
+    
     def default_body(self):
         return ATTACH_DISK
 
@@ -790,11 +790,11 @@ class TestAttachDisk(ACSMockServiceTestCase):
         self.assertEqual(result[0]['RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
 
 
-class TestDetachDisk(ACSMockServiceTestCase):
+class TestDetachDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
-    region_id = "cn-beijing"
+    region_id = "cn-beijing"           
     disk_id = "d-2zecexhwthhw5wyco3m2"
-
+    
     def default_body(self):
         return DETACH_DISK
 
@@ -805,10 +805,10 @@ class TestDetachDisk(ACSMockServiceTestCase):
             self.assertEqual(result[0]['RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
 
 
-class TestDeleteDisk(ACSMockServiceTestCase):
+class TestDeleteDisk(ACSMockServiceTestCase): 
     connection_class = ECSConnection
     disk_id = "d-2zecexhwthhw5wyco3m2"
-
+    
     def default_body(self):
         return DELETE_DISK
 
@@ -819,8 +819,8 @@ class TestDeleteDisk(ACSMockServiceTestCase):
             self.assertEqual(result[u'RequestId'], "AF3991A3-5203-4F83-8FAD-FDC1253AF15D")
         else:
             self.assertEqual(result[0], {'Error Code:': 'InvalidDiskId.NotFound', 'Error Message:': 'Disk not exist'})
-
-
+                                                  
+ 
 class TestCreateImage(ACSMockServiceTestCase):
     connection_class = ECSConnection
     region_id = 'cn-hongkong'
@@ -834,7 +834,7 @@ class TestCreateImage(ACSMockServiceTestCase):
 
     def default_body(self):
         return CREATE_IMAGE
-
+   
     def test_create_image(self):
         self.set_http_response(status_code=200)
         changed, image_id, result, request_id = self.service_connection.create_image(snapshot_id=self.snapshot_id,
@@ -845,15 +845,15 @@ class TestCreateImage(ACSMockServiceTestCase):
                                                                                      instance_id=self.instance_id,
                                                                                      disk_mapping=self.disk_mapping,
                                                                                      wait=None, wait_timeout=None)
-        self.assertEqual(image_id, 'm-j6cb0rw4eso5jsc6927n')
+        self.assertEqual(image_id, 'm-j6cb0rw4eso5jsc6927n')               
 
 
-class TestDeleteImage(ACSMockServiceTestCase):
+class TestDeleteImage(ACSMockServiceTestCase): 
     connection_class = ECSConnection
 
     image_id = 'm-j6chvbnmr7lr6tg9276s'
     region = 'cn-hongkong'
-    state = 'absent'
+    state = 'absent'    
 
     def default_body(self):
         return DELETE_IMAGE

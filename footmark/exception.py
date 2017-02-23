@@ -93,6 +93,17 @@ class ECSResponseError(FootmarkServerError):
         super(ECSResponseError, self).__init__(status, body)
 
 
+
+
+class SLBResponseError(FootmarkServerError):
+    """
+    Error in response from SLB.
+    """
+
+    def __init__(self, status, body=None):
+        super(SLBResponseError, self).__init__(status, body)
+
+
 class JSONResponseError(FootmarkServerError):
     """
     This exception expects the fully parsed and decoded JSON response
