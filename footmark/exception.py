@@ -93,6 +93,13 @@ class ECSResponseError(FootmarkServerError):
         super(ECSResponseError, self).__init__(status, body)
 
 
+class VPCResponseError(FootmarkServerError):
+    """
+    Error in response from VPC.
+    """
+
+    def __init__(self, status, body=None):
+        super(VPCResponseError, self).__init__(status, body)
 
 
 class SLBResponseError(FootmarkServerError):

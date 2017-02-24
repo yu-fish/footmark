@@ -5,7 +5,7 @@ import os
 
 from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
-__version__ = '1.5.0'
+__version__ = '1.6.0'
 Version = __version__  # for backware compatibility
 
 def init_logging():
@@ -48,3 +48,17 @@ def connect_slb(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
     """
     from footmark.slb.connection import SLBConnection
     return SLBConnection(acs_access_key_id, acs_secret_access_key, **kwargs)
+
+def connect_vpc(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
+    """
+    :type acs_access_key_id: string
+    :param acs_access_key_id: Your AWS Access Key ID
+
+    :type acs_secret_access_key: string
+    :param acs_secret_access_key: Your AWS Secret Access Key
+
+    :rtype: :class:`footmark.vpc.connection.ECSConnection`
+    :return: A connection to Amazon's VPC
+    """
+    from footmark.vpc.connection import VPCConnection
+    return VPCConnection(acs_access_key_id, acs_secret_access_key, **kwargs)
