@@ -122,13 +122,19 @@ class ECSConnection(ACSQueryConnection):
                       PendingDeprecationWarning)
 
         params = {}
+
         if instance_ids:
             self.build_list_params(params, instance_ids, 'InstanceIds')
         if filters:
             self.build_filter_params(params, filters)
         if max_results is not None:
             params['MaxResults'] = max_results
-        instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
+
+        try:
+            instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
+        except Exception as ex:
+            instances = None
+
         return instances
 
     def start_instances(self, instance_ids=None):
@@ -1712,6 +1718,25 @@ class ECSConnection(ACSQueryConnection):
         return results, progress, changed
 
 
+    def get_instance_details(self, instance_id):
+        """
+
+        :param instance_id:
+        :return:
+        """
+        params = {}
+        results = []
+        instance_details = None
+
+        self.build_list_params(params, instance_id, 'InstanceId')
+
+        try:
+            instance_details = self.get_status('DescribeInstanceAttribute', params)
+        except Exception as ex:
+            results.append("Error in retrieving instance details due to error code '" +
+                           ex.error_code + "' and message '" + ex.message + "'")
+
+        return instance_details, results
     
 
     
