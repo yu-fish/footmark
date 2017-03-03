@@ -98,6 +98,7 @@ class VPCConnection(ACSQueryConnection):
                             self.build_list_params(params, purge_vswitche, 'VSwitchId')
                             del_result = self.get_status('DeleteVSwitch', params)
                             results.append({"status": purge_vswitche+" deleted", "flag": True})
+                            changed = True
                     else:
                         results.append({"status": "Vswitchs is not found in specified vpc", "flag": False})
             else:
@@ -585,12 +586,10 @@ class VPCConnection(ACSQueryConnection):
             if int(desc_route_table_response[u'TotalCount']) > 0:
                 vrouter_table_id = str(desc_route_table_response[u'RouteTables'][u'RouteTable'][0][u'RouteTableId'])
 
-        for vroute in route_tables:
-            if "route_table_id" in vroute:
+            for vroute in route_tables:
+                self.build_list_params(params, vrouter_table_id , 'RouteTableId')              
                 if "next_hop_id" in vroute:
-                    if vroute['route_table_id'] ==  vrouter_table_id:
-             
-                        self.build_list_params(params, vroute['route_table_id'] , 'RouteTableId')              
+                    if ("dest" in vroute) or ("destination_cidrblock" in vroute):
                         fixed_dest_cidr_block = None
                         if 'dest' in vroute:
                             fixed_dest_cidr_block = vroute["dest"]
@@ -625,11 +624,12 @@ class VPCConnection(ACSQueryConnection):
                             error_msg = ex.message
                             results.append({"Error Code": error_code, "Error Message": error_msg})
                     else:
-                        results.append({ "Error Message": "RouteTableId or VpcId does not exist"})
+                        results.append({"Error Message": "destination_cidrblock is required to create custom route entry"})
                 else:
                     results.append({"Error Message": "next_hop_id is required to create custom route entry"})
-            else:
-                results.append({"Error Message": "route_table_id is required to create custom route entry"})
+        else:
+            results.append({"Error Message": "vpc_id is not valid"})
+        
         return changed, results
 
     def get_vswitch_status(self, vpc_id, zone_id=None, vswitch_id=None, pagenumber=None, pagesize=None):
@@ -665,7 +665,6 @@ class VPCConnection(ACSQueryConnection):
 
         try:
             results = self.get_status('DescribeVSwitches', params)
-            changed = True
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message

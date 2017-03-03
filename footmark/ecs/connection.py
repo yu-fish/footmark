@@ -76,7 +76,7 @@ class ECSConnection(ACSQueryConnection):
 
     def get_all_instances(self, instance_ids=None, filters=None, max_results=None):
         """
-        Retrieve all the instance associated with your account.
+        Retrieve all the instance associated with your account. 
 
         :rtype: list
         :return: A list of  :class:`footmark.ecs.instance`
@@ -295,7 +295,6 @@ class ECSConnection(ACSQueryConnection):
 
         try:
             results = self.get_status('DescribeSecurityGroups', params)
-            changed = True
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message

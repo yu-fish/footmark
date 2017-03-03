@@ -925,7 +925,7 @@ class SLBConnection(ACSQueryConnection):
             if len(response['BackendServers']['BackendServer']) > 0:
                 backend_servers_health_status.extend(response['BackendServers']['BackendServer'])
             elif port:
-                results.append("No listener or backend servers available for port " + str(port))
+                results.append("No backend servers available for port " + str(port))
             else:
                 results.append("No listener or backend servers available for slb id " + load_balancer_id)
 
