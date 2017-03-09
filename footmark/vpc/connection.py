@@ -82,7 +82,7 @@ class VPCConnection(ACSQueryConnection):
         vswitch_to_delete = []
         try:
             response = self.get_vpc_info(vpc_id=vpc_id)
-            if response[0][u'TotalCount'] > 0:                
+            if response[0][u'TotalCount'] > 0:
                 if response[0][u'Vpcs'][u'Vpc'][0][u'VSwitchIds'][u'VSwitchId']:
                     for purge in purge_vswitches:
                         flag = False
@@ -91,20 +91,20 @@ class VPCConnection(ACSQueryConnection):
                                 flag = True
                                 vswitch_to_delete.append(purge)
                         if not flag:
-                            results.append({"status": purge+" VSwitch not found to delete", "flag": False})
+                            results.append({"status": purge + " VSwitch not found to delete", "flag": False})
                     if purge_vswitches:
                         for purge_vswitche in vswitch_to_delete:
                             params = {}
                             self.build_list_params(params, purge_vswitche, 'VSwitchId')
                             del_result = self.get_status('DeleteVSwitch', params)
-                            results.append({"status": purge_vswitche+" deleted", "flag": True})
+                            results.append({"status": purge_vswitche + " deleted", "flag": True})
                             changed = True
                     else:
                         results.append({"status": "Vswitchs is not found in specified vpc", "flag": False})
             else:
                 results.append({"status": "VPC not found", "flag": False})
 
-        except Exception as ex:                       
+        except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
@@ -124,8 +124,8 @@ class VPCConnection(ACSQueryConnection):
             self.build_list_params(params, vpc_id, 'VpcId')
             response = self.get_status('DescribeVpcs', params)
             results.append(response)
-            
-        except Exception as ex:        
+
+        except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
@@ -133,7 +133,7 @@ class VPCConnection(ACSQueryConnection):
 
     def get_instance_info(self):
         """
-        method to get all Instances of particular region 
+        method to get all Instances of particular region
         :return: Return All Instances in the region
         """
         params = {}
@@ -143,8 +143,8 @@ class VPCConnection(ACSQueryConnection):
             v_ids = {}
             response = self.get_status('DescribeInstances', params)
             results.append(response)
-            
-        except Exception as ex:        
+
+        except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
@@ -152,7 +152,7 @@ class VPCConnection(ACSQueryConnection):
 
     def describe_vswitch(self, purge_vswitches, vpc_id):
         """
-        method to check vswitch present or not       
+        method to check vswitch present or not
         :type vpc_id : str
         :param vpc_id: The Id of vpc in which switch is present
         :type purge_vswitches :str
@@ -162,13 +162,13 @@ class VPCConnection(ACSQueryConnection):
         params = {}
         results = []
 
-        try:     
-                             
+        try:
+
             self.build_list_params(params, purge_vswitches, 'VSwitchId')
             self.build_list_params(params, vpc_id, 'VpcId')
             response = self.get_status('DescribeVSwitches', params)
             results.append(response)
-            
+
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
@@ -190,10 +190,10 @@ class VPCConnection(ACSQueryConnection):
         try:
             if bandwidth:
                 self.build_list_params(params, bandwidth, 'Bandwidth')
-            
+
             if internet_charge_type:
                 self.build_list_params(params, internet_charge_type, 'InternetChargeType')
-                  
+
             results = self.get_status('AllocateEipAddress', params)
             changed = True
         except Exception as ex:
@@ -212,17 +212,17 @@ class VPCConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-        
+
         self.build_list_params(params, allocation_id, 'AllocationId')
         self.build_list_params(params, instance_id, 'InstanceId')
-       
+
         try:
             results = self.get_status('AssociateEipAddress', params)
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
-       
+
         return results
 
     def unbind_eip(self, allocation_id, instance_id):
@@ -248,7 +248,7 @@ class VPCConnection(ACSQueryConnection):
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
         return changed, results
-        
+
     def modifying_eip_attributes(self, allocation_id, bandwidth):
         """
         :type allocation_id:string
@@ -290,13 +290,13 @@ class VPCConnection(ACSQueryConnection):
         results = []
         changed = False
         try:
-            if vrouter_id is not None :
+            if vrouter_id is not None:
                 self.build_list_params(params, vrouter_id, 'VRouterId')
 
-            if pagenumber is not None :
+            if pagenumber is not None:
                 self.build_list_params(params, pagenumber, 'PageNumber')
 
-            if pagesize is not None :
+            if pagesize is not None:
                 self.build_list_params(params, pagesize, 'PageSize')
 
             results = self.get_status('DescribeVRouters', params)
@@ -323,14 +323,14 @@ class VPCConnection(ACSQueryConnection):
         vrouter_table_id = None
         changed = False
 
-        # Describe Vpc for getting VRouterId            
+        # Describe Vpc for getting VRouterId
         desc_vpc_param = {}
         self.build_list_params(desc_vpc_param, vpc_id, 'VpcId')
         desc_vpc_response = self.get_status('DescribeVpcs', desc_vpc_param)
         if int(desc_vpc_response[u'TotalCount']) > 0:
-            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId']) 
-        
-            # Describe Route Tables for getting RouteTable Id                    
+            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId'])
+
+            # Describe Route Tables for getting RouteTable Id
             desc_route_table_param = {}
             self.build_list_params(desc_route_table_param, vrouter_id, 'VRouterId')
             desc_route_table_response = self.get_status('DescribeRouteTables', desc_route_table_param)
@@ -339,8 +339,8 @@ class VPCConnection(ACSQueryConnection):
 
         if 'route_table_id' in purge_routes:
             if 'next_hop_id' in purge_routes:
-                if vrouter_table_id == purge_routes["route_table_id"]:                
-                    self.build_list_params(params, purge_routes["route_table_id"], 'RouteTableId')        
+                if vrouter_table_id == purge_routes["route_table_id"]:
+                    self.build_list_params(params, purge_routes["route_table_id"], 'RouteTableId')
                     fixed_dest_cidr_block = None
                     if 'dest' in purge_routes:
                         fixed_dest_cidr_block = purge_routes["dest"]
@@ -348,7 +348,7 @@ class VPCConnection(ACSQueryConnection):
                         fixed_dest_cidr_block = purge_routes["destination_cidrblock"]
                     if fixed_dest_cidr_block:
                         self.build_list_params(params, fixed_dest_cidr_block, 'DestinationCidrBlock')
-        
+
                     self.build_list_params(params, purge_routes["next_hop_id"], 'NextHopId')
 
                     try:
@@ -360,7 +360,7 @@ class VPCConnection(ACSQueryConnection):
                         results.append({"Error Code": error_code, "Error Message": error_msg})
                 else:
                     changed = False
-                    results.append({ "Error Message": "RouteTableId or VpcId does not exist"})
+                    results.append({"Error Message": "RouteTableId or VpcId does not exist"})
             else:
                 results.append({"Error Message": "next_hop_id is required to delete route entry"})
         else:
@@ -390,7 +390,6 @@ class VPCConnection(ACSQueryConnection):
 
         return results
 
-
     def describe_eip_address(self, eip_address=None, allocation_id=None, eip_status=None,
                              page_number=1, page_size=50):
         """
@@ -403,7 +402,7 @@ class VPCConnection(ACSQueryConnection):
 
         params = {}
         results = []
-        eip_details=None
+        eip_details = None
 
         if allocation_id:
             self.build_list_params(params, allocation_id, 'AllocationId')
@@ -479,10 +478,10 @@ class VPCConnection(ACSQueryConnection):
 
             if vswitches:
                 vswitch_response = self.create_vswitch(vpc_id=vpc_id, vswitches=vswitches)
-            if 'error code' in str(vswitch_response).lower() and 'error message' in str(vswitch_response).lower():
-                results.append(vswitch_response[1][0]['Error Message'])
-            else:
-                 results.append(vswitch_response[1])
+                if 'error code' in str(vswitch_response).lower() and 'error message' in str(vswitch_response).lower():
+                    results.append(vswitch_response[1][0]['Error Message'])
+                else:
+                    results.append(vswitch_response[1])
 
         if str(wait).lower() in ['yes', 'true'] and wait_timeout:
             time.sleep(wait_timeout)
@@ -508,27 +507,27 @@ class VPCConnection(ACSQueryConnection):
         results = []
         changed = False
         VSwitchId = []
-        
+
         self.build_list_params(params, vpc_id, 'VpcId')
 
         for vswitch in vswitches:
             fix_zone_id = None
             if 'zone' in vswitch:
-                fix_zone_id =  vswitch["zone"]
+                fix_zone_id = vswitch["zone"]
             if 'az' in vswitch:
                 fix_zone_id = vswitch["az"]
             if 'zone_id' in vswitch:
                 fix_zone_id = vswitch["zone_id"]
             if fix_zone_id:
-                self.build_list_params(params, fix_zone_id, 'ZoneId')            
+                self.build_list_params(params, fix_zone_id, 'ZoneId')
 
             fix_cidr_block = None
             if 'cidr' in vswitch:
-                fix_cidr_block =  vswitch["cidr"]
+                fix_cidr_block = vswitch["cidr"]
             if 'cidr_block' in vswitch:
                 fix_cidr_block = vswitch["cidr_block"]
             if fix_cidr_block:
-                self.build_list_params(params, fix_cidr_block, 'CidrBlock')            
+                self.build_list_params(params, fix_cidr_block, 'CidrBlock')
 
             fix_vswitch_name = None
             if 'name' in vswitch:
@@ -539,7 +538,7 @@ class VPCConnection(ACSQueryConnection):
                 self.build_list_params(params, fix_vswitch_name, 'VSwitchName')
 
             if 'description' in vswitch:
-                self.build_list_params(params, vswitch["description"], 'Description')      
+                self.build_list_params(params, vswitch["description"], 'Description')
 
             try:
                 response = self.get_status('CreateVSwitch', params)
@@ -551,7 +550,7 @@ class VPCConnection(ACSQueryConnection):
                 error_code = ex.error_code
                 error_msg = ex.message
                 results.append({"Error Code": error_code, "Error Message": error_msg})
-        
+
         return changed, results, VSwitchId
 
     def create_route_entry(self, route_tables, vpc_id):
@@ -569,17 +568,17 @@ class VPCConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-        changed = False        
+        changed = False
         vrouter_table_id = None
 
-        # Describe Vpc for getting VRouterId            
+        # Describe Vpc for getting VRouterId
         desc_vpc_param = {}
         self.build_list_params(desc_vpc_param, vpc_id, 'VpcId')
         desc_vpc_response = self.get_status('DescribeVpcs', desc_vpc_param)
         if int(desc_vpc_response[u'TotalCount']) > 0:
-            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId']) 
+            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId'])
 
-            # Describe Route Tables for getting RouteTable Id                    
+            # Describe Route Tables for getting RouteTable Id
             desc_route_table_param = {}
             self.build_list_params(desc_route_table_param, vrouter_id, 'VRouterId')
             desc_route_table_response = self.get_status('DescribeRouteTables', desc_route_table_param)
@@ -587,7 +586,7 @@ class VPCConnection(ACSQueryConnection):
                 vrouter_table_id = str(desc_route_table_response[u'RouteTables'][u'RouteTable'][0][u'RouteTableId'])
 
             for vroute in route_tables:
-                self.build_list_params(params, vrouter_table_id , 'RouteTableId')              
+                self.build_list_params(params, vrouter_table_id, 'RouteTableId')
                 if "next_hop_id" in vroute:
                     if ("dest" in vroute) or ("destination_cidrblock" in vroute):
                         fixed_dest_cidr_block = None
@@ -603,7 +602,7 @@ class VPCConnection(ACSQueryConnection):
 
                         if 'next_hop_id' in vroute:
                             self.build_list_params(params, vroute["next_hop_id"], 'NextHopId')
-                    
+
                         try:
                             instance_result = self.get_instance_info()
                             flag = False
@@ -612,24 +611,25 @@ class VPCConnection(ACSQueryConnection):
                                     if vroute["next_hop_id"] == instances['InstanceId']:
                                         flag = True
                                         break
-                            if flag:    
+                            if flag:
                                 response = self.get_status('CreateRouteEntry', params)
                                 results.append(response)
                                 changed = True
                                 time.sleep(10)
                             else:
-                                results.append({"Error Message": str(vroute["next_hop_id"])+" Instance not found"})
+                                results.append({"Error Message": str(vroute["next_hop_id"]) + " Instance not found"})
                         except Exception as ex:
                             error_code = ex.error_code
                             error_msg = ex.message
                             results.append({"Error Code": error_code, "Error Message": error_msg})
                     else:
-                        results.append({"Error Message": "destination_cidrblock is required to create custom route entry"})
+                        results.append(
+                            {"Error Message": "destination_cidrblock is required to create custom route entry"})
                 else:
                     results.append({"Error Message": "next_hop_id is required to create custom route entry"})
         else:
             results.append({"Error Message": "vpc_id is not valid"})
-        
+
         return changed, results
 
     def get_vswitch_status(self, vpc_id, zone_id=None, vswitch_id=None, pagenumber=None, pagesize=None):
@@ -706,7 +706,7 @@ class VPCConnection(ACSQueryConnection):
                 'IncorrectVpcStatus': 'The current VPC status does not support this operation',
                 'SDK.InvalidRegionId': 'Invalide Region Id'}
 
-            results.append("Following error occurred while deleting Vpc with Id "+vpc_id)
+            results.append("Following error occurred while deleting Vpc with Id " + vpc_id)
             results.append("Error Code: " + error_code)
             if error_code in error_dict:
                 results.append("Message: " + str(error_dict[error_code]))
