@@ -257,7 +257,7 @@ class ECSConnection(ACSQueryConnection):
         :type dry_run: bool
         :param dry_run: Set to True if the operation should not actually run.
 
-        :rtype: list of :class:`boto.ec2.volume.Volume`
+        :rtype: list of Volume
         :return: The requested Volume objects
         """
         params = {}
@@ -897,11 +897,11 @@ class ECSConnection(ACSQueryConnection):
                         filter names as the key and filter values
                         as the value.  The set of allowable filter
                         names/values is dependent on the request
-                        being performed.  Check the EC2 API guide
+                        being performed.  Check the ECS API guide
                         for details.
 
         :rtype: list
-        :return: A list of :class:`boto.ec2.securitygroup.SecurityGroup`
+        :return: A list of SecurityGroup
         """
         params = {}
         if group_ids:

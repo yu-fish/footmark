@@ -17,7 +17,7 @@ from footmark.exception import SLBResponseError
 class SLBConnection(ACSQueryConnection):
     SDKVersion = '2014-05-15'
     DefaultRegionId = 'cn-hangzhou'
-    DefaultRegionName = u'??'.encode("UTF-8")
+    DefaultRegionName = u'杭州'.encode("UTF-8")
     ResponseError = SLBResponseError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
@@ -964,6 +964,7 @@ class SLBConnection(ACSQueryConnection):
         try:
             result = self.get_status('SetLoadBalancerStatus', params)
             results.append(result)
+            changed = True
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message

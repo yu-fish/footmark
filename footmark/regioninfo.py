@@ -126,7 +126,7 @@ def get_regions(service_name, region_cls=None, connection_cls=None):
 
 class RegionInfo(object):
     """
-    Represents an AWS Region
+    Represents an Aliyun Region
     """
 
     def __init__(self, connection=None, name=None, id=None,

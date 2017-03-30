@@ -11,7 +11,7 @@ StandardError = Exception
 
 class FootmarkClientError(StandardError):
     """
-    General Footmark Client error (error accessing AWS)
+    General Footmark Client error (error accessing Aliyun)
     """
 
     def __init__(self, reason, *args):
@@ -120,8 +120,8 @@ class JSONResponseError(FootmarkServerError):
     :ivar reason: The HTTP reason message.
     :ivar body: The Python dict that represents the decoded JSON
         response body.
-    :ivar error_message: The full description of the AWS error encountered.
-    :ivar error_code: A short string that identifies the AWS error
+    :ivar error_message: The full description of the Aliyun error encountered.
+    :ivar error_code: A short string that identifies the Aliyun error
         (e.g. ConditionalCheckFailedException)
     """
 
