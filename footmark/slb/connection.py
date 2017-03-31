@@ -94,20 +94,7 @@ class SLBConnection(ACSQueryConnection):
             self.build_list_params(params, slave_zone_id, 'SlaveZoneId')
         if bandwidth:
             self.build_list_params(params, bandwidth, 'Bandwidth')
-                                   
-        # load_balancer_tags = []
-        # tag_no = 1
-        # if tags:
-        #     for tag in tags:
-        #         if tag:
-        #             if 'tag_key' and 'tag_value' in tag:
-        #                 if (tag['tag_key'] is not None) and (tag['tag_value'] is not None):
-        #                     load_balancer_tags.append({'Tag'+str(tag_no)+'Key': tag['tag_key'],
-        #                                                'Tag'+str(tag_no)+'Value': tag['tag_value']})
-        #                     tag_no += 1
-        #     load_balancer_tags_json = json.dumps(load_balancer_tags)
-        #     self.build_list_params(params, load_balancer_tags_json, 'Tags')
-    
+                                       
         try:
             response = self.get_status('CreateLoadBalancer', params)
             results.append(response)

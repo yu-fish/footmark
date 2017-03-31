@@ -84,7 +84,7 @@ class ECSConnection(ACSQueryConnection):
         """
         warnings.warn(('The current get_all_instances implementation will be '
                        'replaced with get_all_instances.'),
-                      PendingDeprecationWarning)
+                      PendingDeprecationWarning) 
 
         params = {}
         if instance_ids:
@@ -711,16 +711,13 @@ class ECSConnection(ACSQueryConnection):
         changed = False
         status = False
         
-        if not isinstance(instance_ids,list):
+        if not isinstance(instance_ids, list):
             changed = False
             results.append("Error Code: " + "Invalid DataType")
             results.append("Error Message: " + "instance_ids must be of type list")
             return changed, results
 
         instance_count = len(instance_ids)
-        flag_fail = 0
-        pass_cnt = 0
-
         success_instance_ids=[]
         failed_instance_ids=[]
 
@@ -740,19 +737,12 @@ class ECSConnection(ACSQueryConnection):
                     id_of_instance) + "' to security group " + str(group_id))
 
                 # Verifying whether operation got performed successfully
-                # 3 attempts are used considering slow performance from server
-                attempts = 0
-                for i in range(0, 10):
-                    if not status and attempts < 10:
-                        status = self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join')
-                        if status:
-                            pass_cnt = pass_cnt + 1
-                            break
-                    attempts += 1  
-                success_instance_ids.append(id_of_instance)
+                while self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join') is False:
+                    pass
+                else:
+                    changed = True
                     
             except Exception as ex:
-                flag_fail = 1
                 error_code = ex.error_code
                 failed_instance_ids.append(id_of_instance)
                 error_msg = "Join security group failed for instance: '" + str(
@@ -761,13 +751,6 @@ class ECSConnection(ACSQueryConnection):
                 results.append(error_msg)
                 results.append("Error Code: " + error_code)
                 results.append("Error Message: " + ex.message)
-
-        if flag_fail == 0 and pass_cnt > 0:
-            changed = True
-        elif flag_fail == 1 and pass_cnt > 0:
-            changed = True
-        elif flag_fail == 1 and pass_cnt == 0:
-            changed = False 
 
         return changed, results, success_instance_ids, failed_instance_ids     
 
@@ -785,8 +768,6 @@ class ECSConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-        flag_fail = 0
-        pass_cnt = 0
         
         if not isinstance(instance_ids,list):
             changed = False
@@ -817,19 +798,14 @@ class ECSConnection(ACSQueryConnection):
                     id_of_instance) + " from security group " + str(group_id))
 
                 # Verifying whether operation got performed successfully
-                # 3 attempts are used considering slow performance from server
-                attempts = 0 
-                for i in range(0, 10):
-                    if not status and attempts < 10:
-                        status = self.verify_join_remove_securitygrp(id_of_instance, group_id, 'remove')
-                        if status:
-                            pass_cnt = pass_cnt + 1
-                            break
-                    attempts += 1  
+                while self.verify_join_remove_securitygrp(id_of_instance, group_id, 'remove') is False:
+                    pass
+                else:
+                    changed = True
+
                 success_instance_ids.append(id_of_instance)
 
             except Exception as ex:
-                flag_fail = 1
                 error_code = ex.error_code
                 failed_instance_ids.append(id_of_instance)
                 error_msg = "Leave security group failed for instance: '" + str(
@@ -839,13 +815,6 @@ class ECSConnection(ACSQueryConnection):
                 results.append(error_msg)
                 results.append("Error Code" + error_code)
                 results.append("Error Message" + ex.message)
-
-        if flag_fail == 0 and pass_cnt > 0:
-            changed = True
-        elif flag_fail == 1 and pass_cnt > 0:
-            changed = True
-        elif flag_fail == 1 and pass_cnt == 0:
-            changed = False
 
         return changed, results, success_instance_ids, failed_instance_ids
 
