@@ -85,7 +85,7 @@ def get_regions(service_name, region_cls=None, connection_cls=None):
     configure/construct all the objects.
 
     :param service_name: The name of the service to construct the ``RegionInfo``
-        objects for. Ex: ``ecs``, ``s3``, ``sns``, etc.
+        objects for. Ex: ``ecs``
     :type service_name: string
 
     :param region_cls: (Optional) The class to use when constructing. By

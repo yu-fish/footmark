@@ -12,7 +12,6 @@ from footmark.ecs.vrouter import VRouterList
 
 
 class VPCConnection(ACSQueryConnection):
-    # SDKVersion = footmark.config.get('Footmark', 'ecs_version', '2014-05-26')
     SDKVersion = '2014-05-26'
     DefaultRegionId = 'cn-hangzhou'
     DefaultRegionName = u'杭州'.encode("UTF-8")
@@ -129,6 +128,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return results
 
     def get_instance_info(self):
@@ -148,6 +148,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return results
 
     def describe_vswitch(self, purge_vswitches, vpc_id):
@@ -173,6 +174,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return results
 
     def requesting_eip_addresses(self, bandwidth, internet_charge_type):
@@ -200,6 +202,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def bind_eip(self, allocation_id, instance_id):
@@ -247,6 +250,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
         
     def modifying_eip_attributes(self, allocation_id, bandwidth):
@@ -272,6 +276,7 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def get_all_vrouters(self, vrouter_id=None, pagenumber=None, pagesize=None):
@@ -288,7 +293,7 @@ class VPCConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-        changed = False
+
         try:
             if vrouter_id is not None :
                 self.build_list_params(params, vrouter_id, 'VRouterId')
@@ -304,7 +309,8 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
-        return changed, results
+
+        return False, results
 
     def delete_custom_route(self, purge_routes, vpc_id):
         """
@@ -365,6 +371,7 @@ class VPCConnection(ACSQueryConnection):
                 results.append({"Error Message": "next_hop_id is required to delete route entry"})
         else:
             results.append({"Error Message": "route_table_id is required to delete route entry"})
+
         return changed, results
 
     def releasing_eip(self, allocation_id):
@@ -390,7 +397,6 @@ class VPCConnection(ACSQueryConnection):
 
         return results
 
-
     def describe_eip_address(self, eip_address=None, allocation_id=None, eip_status=None,
                              page_number=1, page_size=50):
         """
@@ -400,7 +406,6 @@ class VPCConnection(ACSQueryConnection):
         :param eip_status:
         :return:
         """
-
         params = {}
         results = []
         eip_details=None
@@ -555,7 +560,6 @@ class VPCConnection(ACSQueryConnection):
         return changed, results, VSwitchId
 
     def create_route_entry(self, route_tables, vpc_id):
-
         """
         Create RouteEntry for VPC
         :type route_tables: dict
@@ -633,7 +637,6 @@ class VPCConnection(ACSQueryConnection):
         return changed, results
 
     def get_vswitch_status(self, vpc_id, zone_id=None, vswitch_id=None, pagenumber=None, pagesize=None):
-
         """
         List VSwitches of VPC with their status
         :type vpc_id: string
@@ -651,7 +654,6 @@ class VPCConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-        changed = False
 
         self.build_list_params(params, vpc_id, 'VpcId')
         if zone_id:
@@ -669,7 +671,8 @@ class VPCConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
-        return changed, results
+
+        return False, results
 
     def delete_vpc(self, vpc_id=None):
         """

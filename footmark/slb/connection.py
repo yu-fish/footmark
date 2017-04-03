@@ -814,6 +814,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results    
 
     def remove_backend_servers(self, load_balancer_id=None, backend_server_ids=None):
@@ -983,6 +984,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def delete_load_balancer(self, slb_id):
@@ -1056,17 +1058,15 @@ class SLBConnection(ACSQueryConnection):
         """
 
         params = {}
-        load_balancer_info = None
 
         self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
 
         try:
             response = self.get_status('DescribeLoadBalancerAttribute', params)
-            load_balancer_info = response
         except Exception as ex:
-            return load_balancer_info
+            return None
 
-        return load_balancer_info
+        return response
 
     def create_vserver_group(self, load_balancer_id, vserver_group_name, backend_servers):
         """
@@ -1112,6 +1112,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed, results
 
     def set_vservergroup_attribute(self, vserver_group_id, vserver_group_name=None, backend_servers=None):
@@ -1162,6 +1163,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed, results
 
     def add_vservergroup_backend_server(self, vserver_group_id, backend_servers):
@@ -1201,6 +1203,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed, results
 
     def remove_vserver_group_backend_server(self, vserver_group_id, purge_backend_servers):
@@ -1239,6 +1242,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def modify_vserver_group_backend_server(self, vserver_group_id, purge_backend_servers, backend_servers):
@@ -1336,6 +1340,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def describe_vservergroup_attributes(self, vserver_group_id):
@@ -1361,6 +1366,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed, results
 
     def describe_vservergroup_backendserver(self, vserver_group_id, backend_servers):
@@ -1404,6 +1410,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed_flag, results
 
     def describe_vservergroup_backendserver_to_add(self, vserver_group_id, backend_servers):
@@ -1448,6 +1455,7 @@ class SLBConnection(ACSQueryConnection):
             error_code = str(ex.error_code)
             error_msg = str(ex.message)
             results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
+
         return changed_flag, results
 
     def delete_vserver_group(self, load_balancer_id, vserver_group_id):

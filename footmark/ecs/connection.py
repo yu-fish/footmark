@@ -18,7 +18,6 @@ from footmark.exception import ECSResponseError
 
 
 class ECSConnection(ACSQueryConnection):
-    # SDKVersion = footmark.config.get('Footmark', 'ecs_version', '2014-05-26')
     SDKVersion = '2014-05-26'
     DefaultRegionId = 'cn-hangzhou'
     DefaultRegionName = u'杭州'.encode("UTF-8")
@@ -286,7 +285,6 @@ class ECSConnection(ACSQueryConnection):
 
         params = {}
         results = []
-        changed = False 
 
         if vpc_id:
             self.build_list_params(params, vpc_id, 'VpcId')
@@ -300,7 +298,7 @@ class ECSConnection(ACSQueryConnection):
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
 
-        return changed, results
+        return False, results
 
     def create_instance(self, image_id, instance_type, group_id=None, zone_id=None, instance_name=None,
                         description=None, internet_data=None, host_name=None, password=None, io_optimized=None,
@@ -654,6 +652,7 @@ class ECSConnection(ACSQueryConnection):
                         error_code = ex.error_code
                         error_msg = ex.message
                         results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def get_instance_status(self, zone_id=None, pagenumber=None, pagesize=None):
@@ -676,7 +675,6 @@ class ECSConnection(ACSQueryConnection):
 
         params = {}
         results = []
-        changed = False
 
         if zone_id:
             self.build_list_params(params, zone_id, 'ZoneId')
@@ -692,7 +690,7 @@ class ECSConnection(ACSQueryConnection):
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
 
-        return changed, results
+        return False, results
 
     def join_security_group(self, instance_ids, group_id):
         """
@@ -709,7 +707,6 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
         changed = False
-        status = False
         
         if not isinstance(instance_ids, list):
             changed = False
@@ -777,7 +774,6 @@ class ECSConnection(ACSQueryConnection):
 
         instance_count = len(instance_ids)
         changed = False
-        status = False
         
         success_instance_ids=[]
         failed_instance_ids=[]
@@ -1109,12 +1105,14 @@ class ECSConnection(ACSQueryConnection):
                                 results.append(response)
                                 changed = True
                     else:
-                        results.append({"Error Code": "SecurityGroupId does not exist", "Error Message": "SecurityGroupId does not exist"})
+                        results.append({"Error Code": "SecurityGroupId does not exist",
+                                        "Error Message": "SecurityGroupId does not exist"})
             except Exception as ex:
                 error_code = ex.error_code
                 error_msg = ex.message
                 results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
                 changed = False
+
         return changed, results
 
     def create_disk(self, zone_id, disk_name=None, description=None,
@@ -1286,6 +1284,7 @@ class ECSConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, results
 
     def detach_disk(self, disk_id):
@@ -1325,7 +1324,7 @@ class ECSConnection(ACSQueryConnection):
                 # "Instance_id could not be retreived from disk_id" 
                 error_msg = "Disk " + str(disk_id) + " is not attached to any instance"
                 results.append({"Error Code :": error_code, "Error Message :": error_msg})
-            return changed, result, instance_id
+            return changed, results, instance_id
 
         # Instance Id, which is to be added to a detach disk
         self.build_list_params(params, instance_id, 'InstanceId')
@@ -1362,7 +1361,7 @@ class ECSConnection(ACSQueryConnection):
             if instance_obj:
                 if instance_obj['TotalCount'] != 0:
                     # A disk will be attached to 1 instance at a time. 
-                    # Hence retreiving object directly in case od detach disk.
+                    # Hence retrieving object directly in case od detach disk.
                     if instance_obj['Disks']['Disk'] != None and len(instance_obj['Disks']['Disk']) > 0:
                         instance_id = instance_obj['Disks']['Disk'][0]['InstanceId']
                         disk_status = instance_obj['Disks']['Disk'][0]['Status']
@@ -1567,6 +1566,7 @@ class ECSConnection(ACSQueryConnection):
             error_code = ex.error_code
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
+
         return changed, image_id, results, request_id
 
     def set_launch_perms(self, launch_permission, image_id, operation_flag=True):
@@ -1603,7 +1603,7 @@ class ECSConnection(ACSQueryConnection):
                     ], 'AddAccount.' + str(user_no))
                     user_no += 1
                     if user_no == 11:
-                        break;
+                        break
         try:
             response = self.get_status('ModifyImageSharePermission', params)
             changed = True
@@ -1614,16 +1614,15 @@ class ECSConnection(ACSQueryConnection):
             results.append("launch permissions not set successfully")
             results.append({"Error Code": error_code, "Error Message": error_msg})
             changed = False
+
         return changed, results
 
     def delete_image(self, image_id):
         """
         Delete image , delete image inside particular region.
-
         :type image_id: dict
         :param image_id: ID of an Image        
         :rtype: Return status of Operation
-
         """
         params = {}
         results = []
@@ -1649,7 +1648,8 @@ class ECSConnection(ACSQueryConnection):
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
             changed = False
-        return changed, results          
+
+        return changed, results
 
     def get_snapshot_image(self, snapshot_id):
         params = {}
@@ -1685,12 +1685,11 @@ class ECSConnection(ACSQueryConnection):
 
         return results, progress, changed
 
-
     def get_instance_details(self, instance_id):
         """
-
-        :param instance_id:
-        :return:
+        Get details of an Instance
+        :param instance_id: Id of an Instance
+        :return: Return info about instance
         """
         params = {}
         results = []

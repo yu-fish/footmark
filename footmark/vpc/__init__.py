@@ -34,16 +34,6 @@ def connect_to_region(region_id, **kw_params):
     """
     return VPCConnection(region=region_id, **kw_params)
 
-    # if 'region' in kw_params and isinstance(kw_params['region'], RegionInfo)\
-    #    and region_id == kw_params['region'].id:
-    #     return ECSConnection(**kw_params)
-    #
-    # for region in regions(**kw_params):
-    #     if region.id == region_id:
-    #         return region.connect(**kw_params)
-    #
-    # return None
-
 
 def get_region(region_id, **kw_params):
     """
