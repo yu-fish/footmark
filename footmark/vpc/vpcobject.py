@@ -1,4 +1,4 @@
-class ECSObject(object):
+class VPCObject(object):
     def __init__(self, connection=None):
         self.connection = connection
         if self.connection and hasattr(self.connection, 'region'):
@@ -7,7 +7,7 @@ class ECSObject(object):
             self.region = None
 
 
-class TaggedECSObject(ECSObject):
+class TaggedVPCObject(VPCObject):
     """
     Any ECS resource that can be tagged should be represented
     by a Python object that subclasses this class.  This class
@@ -19,4 +19,4 @@ class TaggedECSObject(ECSObject):
     """
 
     def __init__(self, connection=None):
-        super(TaggedECSObject, self).__init__(connection)
+        super(TaggedVPCObject, self).__init__(connection)
