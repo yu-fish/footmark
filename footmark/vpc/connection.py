@@ -518,6 +518,8 @@ class VPCConnection(ACSQueryConnection):
 
         for vswitch in vswitches:
             fix_zone_id = None
+            if 'alicloud_zone' in vswitch:
+                fix_zone_id =  vswitch["alicloud_zone"]
             if 'zone' in vswitch:
                 fix_zone_id =  vswitch["zone"]
             if 'az' in vswitch:
