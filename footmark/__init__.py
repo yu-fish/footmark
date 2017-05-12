@@ -5,7 +5,7 @@ import os
 
 from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
-__version__ = '1.0.7'
+__version__ = '1.0.8'
 Version = __version__  # for backware compatibility
 
 def init_logging():
@@ -65,4 +65,34 @@ def connect_vpc(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
     """
     from footmark.vpc.connection import VPCConnection
     return VPCConnection(acs_access_key_id, acs_secret_access_key, **kwargs)
+
+
+def connect_bucket(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
+    """
+    :type acs_access_key_id: string
+    :param acs_access_key_id: Your Aliyun Access Key ID
+
+    :type acs_secret_access_key: string
+    :param acs_secret_access_key: Your Aliyun Secret Access Key
+
+    :rtype: :class:`footmark.vpc.connection.ECSConnection`
+    :return: A connection to Aliyun's VPC
+    """
+    from footmark.oss.bucket import Bucket
+    return Bucket(acs_access_key_id, acs_secret_access_key, **kwargs)
+
+def connect_rds(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
+    """
+    :type acs_access_key_id: string
+    :param acs_access_key_id: Your Aliyun Access Key ID
+
+    :type acs_secret_access_key: string
+    :param acs_secret_access_key: Your Aliyun Secret Access Key
+
+    :rtype: :class:`footmark.rds.connection.RDSConnection`
+    :return: A connection to Aliyun's RDS
+    """
+    from footmark.rds.connection import RDSConnection
+    return RDSConnection(acs_access_key_id, acs_secret_access_key, **kwargs)
+
 

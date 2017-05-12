@@ -84,7 +84,7 @@ class ECSConnection(ACSQueryConnection):
         """
         warnings.warn(('The current get_all_instances implementation will be '
                        'replaced with get_all_instances.'),
-                      PendingDeprecationWarning)
+                      PendingDeprecationWarning) 
 
         params = {}
         if instance_ids:
@@ -253,10 +253,7 @@ class ECSConnection(ACSQueryConnection):
                         names/values is dependent on the request
                         being performed.  Check the ECS API guide
                         for details.
-
-        :type dry_run: bool
-        :param dry_run: Set to True if the operation should not actually run.
-
+                        
         :rtype: list of Volume
         :return: The requested Volume objects
         """
@@ -618,7 +615,6 @@ class ECSConnection(ACSQueryConnection):
         """
         results = []
         changed = False
-
         if attributes:
             for attribute in attributes:
                 if attribute:
@@ -633,7 +629,7 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, attribute['password'], 'Password')
                     if 'host_name' in attribute:
                         self.build_list_params(params, attribute['host_name'], 'HostName')
-
+                    
                     try:
                         result = self.get_status('ModifyInstanceAttribute', params)
                         results.append(result)
@@ -697,7 +693,7 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
         changed = False
-
+        
         if not isinstance(instance_ids, list):
             changed = False
             results.append("Error Code: " + "Invalid DataType")
@@ -724,7 +720,7 @@ class ECSConnection(ACSQueryConnection):
                     id_of_instance) + "' to security group " + str(group_id))
 
                 # Verifying whether operation got performed successfully
-                self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join')
+                self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join')                
                 success_instance_ids.append(id_of_instance)
                 changed = True
 
@@ -755,7 +751,7 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
 
-        if not isinstance(instance_ids, list):
+        if not isinstance(instance_ids,list):
             changed = False
             results.append("Error Code: " + "Invalid DataType")
             results.append("Error Message: " + "instance_ids must be of type list")
@@ -764,8 +760,8 @@ class ECSConnection(ACSQueryConnection):
         instance_count = len(instance_ids)
         changed = False
 
-        success_instance_ids = []
-        failed_instance_ids = []
+        success_instance_ids=[]
+        failed_instance_ids=[]
 
         for counter in range(0, instance_count):
             id_of_instance = instance_ids[counter]
@@ -1136,7 +1132,7 @@ class ECSConnection(ACSQueryConnection):
         if size:
             self.build_list_params(params, size, 'Size')
 
-            # Disk Tags
+        # Disk Tags
         tag_no = 1
         if disk_tags:
             for disk_tag in disk_tags:
@@ -1149,7 +1145,7 @@ class ECSConnection(ACSQueryConnection):
                                 'tag_value'], 'Tag' + str(tag_no) + 'Value')
                             tag_no += 1
 
-                            # Snapshot Id
+        # Snapshot Id
         if snapshot_id:
             self.build_list_params(params, snapshot_id, 'SnapshotId')
 
@@ -1206,7 +1202,7 @@ class ECSConnection(ACSQueryConnection):
                 results = result_instance
                 return changed, results
 
-                # Instance Id, which is to be added to a security group
+        # Instance Id, which is to be added to a security group
         self.build_list_params(params, id_of_instance, 'InstanceId')
 
         # Disk Id, the disk_id to be mapped
@@ -1274,7 +1270,7 @@ class ECSConnection(ACSQueryConnection):
         if instance_id == None:
             if len(result_instance) == 0:
                 error_code = "Instance not retrieved"
-                # "Instance_id could not be retreived from disk_id"
+                # "Instance_id could not be retreived from disk_id" 
                 error_msg = "Disk " + str(disk_id) + " is not attached to any instance"
                 results.append({"Error Code :": error_code, "Error Message :": error_msg})
             return changed, results, instance_id
@@ -1308,12 +1304,12 @@ class ECSConnection(ACSQueryConnection):
         try:
             disk_ids = [disk_id]
             self.build_list_params(params, disk_ids, 'DiskIds')
-
+                        
             instance_obj = self.get_status('DescribeDisks', params)
 
             if instance_obj:
                 if instance_obj['TotalCount'] != 0:
-                    # A disk will be attached to 1 instance at a time.
+                    # A disk will be attached to 1 instance at a time. 
                     # Hence retrieving object directly in case od detach disk.
                     if instance_obj['Disks']['Disk'] != None and len(instance_obj['Disks']['Disk']) > 0:
                         instance_id = instance_obj['Disks']['Disk'][0]['InstanceId']
@@ -1469,8 +1465,7 @@ class ECSConnection(ACSQueryConnection):
                                 return changed, image_id, results, request_id
 
                         if not snapshot_map_changed:
-                            results.append(
-                                {"Error Code": "Snapshot.NotReady", "Error Message": "snapshot is not ready"})
+                            results.append({"Error Code": "Snapshot.NotReady", "Error Message": "snapshot is not ready"})
                             return changed, image_id, results, request_id
 
                     mapping_no += 1
@@ -1497,7 +1492,7 @@ class ECSConnection(ACSQueryConnection):
 
             image_sharing_results = []
             if launch_permission and image_id:
-                sharing_changed, image_sharing_results = self.set_launch_perms(launch_permission, image_id)
+                sharing_changed, image_sharing_results = self.set_launch_perms(launch_permission,image_id)
 
             if wait:
                 if wait.lower() in ['yes', 'true']:
@@ -1581,9 +1576,9 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
         changed = False
-
+        
         self.build_list_params(params, image_id, 'ImageId')
-
+       
         try:
             response = self.get_status('DescribeImages', params)
             if len(response) > 0:
@@ -1594,7 +1589,7 @@ class ECSConnection(ACSQueryConnection):
                         if image_id == items['ImageId']:
                             response = self.get_status('DeleteImage', params)
                             results.append(response)
-                            changed = True
+                            changed = True 
                 else:
                     results.append({"Error Code": "Image does not exist", "Error Message": "Image does not exist"})
         except Exception as ex:
@@ -1663,7 +1658,6 @@ class ECSConnection(ACSQueryConnection):
     def retry(ExceptionToCheck, tries=10, delay=30, backoff=2, logger=None):
 
         def deco_retry(f):
-
             @wraps(f)
             def f_retry(*args, **kwargs):
                 mtries, mdelay = tries, delay
@@ -1679,11 +1673,11 @@ class ECSConnection(ACSQueryConnection):
             return f_retry  # true decorator
 
         return deco_retry
-
+    
     # Use retry decorator
     @retry(Exception, tries=3)
     def check_instance_is_running(self, instance_id):
-        try:
+        try:            
             params = {}
             self.build_list_params(params, instance_id, 'InstanceId')
             # get instance details

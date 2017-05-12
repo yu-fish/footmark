@@ -94,6 +94,10 @@ class ACSQueryConnection(ACSAuthConnection):
                         request.add_query_param(k[4:], v)
         return conn.get_response(request)
 
+    # This method facilitates unit test of oss methods
+    def make_oss_request(self, api_method):
+        return api_method()
+
     def build_list_params(self, params, items, label):
         params['set_%s' % label] = items
 

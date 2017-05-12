@@ -110,6 +110,23 @@ class SLBResponseError(FootmarkServerError):
     def __init__(self, status, body=None):
         super(SLBResponseError, self).__init__(status, body)
 
+class RDSResponseError(FootmarkServerError):
+    """
+    Error in response from RDS.
+    """
+
+    def __init__(self, status, body=None):
+        super(RDSResponseError, self).__init__(status, body)
+
+
+class OSSResponseError(FootmarkServerError):
+    """
+    Error in response from ECS.
+    """
+
+    def __init__(self, status, body=None):
+        super(OSSResponseError, self).__init__(status, body)
+
 
 class JSONResponseError(FootmarkServerError):
     """
