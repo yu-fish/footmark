@@ -1,7 +1,7 @@
 """
 This module provides an interface to the Elastic Compute Service (ECS) service from Alicloud.
 """
-from footmark.ecs.connection import ECSConnection
+from footmark.vpc.connection import VPCConnection
 from footmark.regioninfo import get_regions
 
 
@@ -15,7 +15,7 @@ def regions(**kw_params):
     :rtype: list
     :return: A list of :class:`footmark.ecs.regioninfo.RegionInfo`
     """
-    return get_regions('ecs', connection_cls=ECSConnection)
+    return get_regions('ecs', connection_cls=VPCConnection)
 
 
 def connect_to_region(region_id, **kw_params):
@@ -32,7 +32,7 @@ def connect_to_region(region_id, **kw_params):
     :return: A connection to the given region, or None if an invalid region
              name is given
     """
-    return ECSConnection(region=region_id, **kw_params)
+    return VPCConnection(region=region_id, **kw_params)
 
 
 def get_region(region_id, **kw_params):

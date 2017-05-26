@@ -102,8 +102,6 @@ class Instance(TaggedECSObject):
         Start the instance.
         """
         rs = self.connection.start_instances([self.id])
-        # if len(rs) > 0:
-        #     self._update(rs[0])
 
     def stop(self, force=False):
         """
@@ -116,8 +114,6 @@ class Instance(TaggedECSObject):
         :return: A list of the instances stopped
         """
         rs = self.connection.stop_instances([self.id], force)
-        # if len(rs) > 0:
-        #     self._update(rs[0])
 
     def reboot(self, force=False):
         """
@@ -136,5 +132,3 @@ class Instance(TaggedECSObject):
         :param force: Forces the instance to terminate
         """
         rs = self.connection.terminate_instances([self.id], force)
-        # if len(rs) > 0:
-        #     self._update(rs[0])
