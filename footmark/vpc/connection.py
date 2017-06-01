@@ -746,10 +746,10 @@ class VPCConnection(ACSQueryConnection):
             else:
                 return False, "Vpc does not exist"
         except Exception as ex:
-            if len(ex.args):
-                msg, stack = ex.args
-                return False, "error occurred while finding Vpc :" + str(msg) + " " + str(stack)
-            else:
+            if hasattr(ex, 'error_code') and hasattr(ex, 'message'):
                 return False, "error occurred while finding Vpc :" + str(ex.error_code) + " " + str(ex.message)
+            else:
+                return False, "error occurred while finding Vpc :" + str(msg) + " " + str(stack)
+                
 
 

@@ -26,9 +26,9 @@ class FootmarkClientError(StandardError):
 
 
 class FootmarkServerError(StandardError):
-    def __init__(self, status, body=None, *args):
-        super(FootmarkServerError, self).__init__(status, body, *args)
-        self.status = status
+    def __init__(self, body=None, *args):
+        super(FootmarkServerError, self).__init__(body, *args)
+        self.status = None
         self.body = body or ''
         self.request_id = None
         self.error_code = None
@@ -42,17 +42,17 @@ class FootmarkServerError(StandardError):
 
         # Attempt to parse the error response. If body isn't present,
         # then just ignore the error response.
-        try:
-            parsed = json.loads(self.body)
+        try:            
+            parsed = body.__dict__
 
-            if 'RequestId' in parsed:
-                self.request_id = parsed['RequestId']
-            if 'Code' in parsed:
-                self.error_code = parsed['Code']
-            if 'Message' in parsed:
-                self.message = parsed['Message']
-            if 'HostId' in parsed:
-                self.host_id = parsed['HostId']
+            if 'request_id' in parsed:
+                self.request_id = str(parsed['request_id'])
+            if 'error_code' in parsed:
+                self.error_code = str(parsed['error_code'])
+            if 'message' in parsed:
+                self.message = str(parsed['message'])
+            if 'http_status' in parsed:
+                self.status = str(parsed['http_status'])             
 
         except (TypeError, ValueError):
             # Remove unparsable message body so we don't include garbage
@@ -89,8 +89,8 @@ class ECSResponseError(FootmarkServerError):
     Error in response from ECS.
     """
 
-    def __init__(self, status, body=None):
-        super(ECSResponseError, self).__init__(status, body)
+    def __init__(self, body=None):
+        super(ECSResponseError, self).__init__(body)
 
 
 class VPCResponseError(FootmarkServerError):
@@ -98,8 +98,8 @@ class VPCResponseError(FootmarkServerError):
     Error in response from VPC.
     """
 
-    def __init__(self, status, body=None):
-        super(VPCResponseError, self).__init__(status, body)
+    def __init__(self, body=None):
+        super(VPCResponseError, self).__init__(body)
 
 
 class SLBResponseError(FootmarkServerError):
@@ -107,16 +107,16 @@ class SLBResponseError(FootmarkServerError):
     Error in response from SLB.
     """
 
-    def __init__(self, status, body=None):
-        super(SLBResponseError, self).__init__(status, body)
+    def __init__(self, body=None):
+        super(SLBResponseError, self).__init__(body)
 
 class RDSResponseError(FootmarkServerError):
     """
     Error in response from RDS.
     """
 
-    def __init__(self, status, body=None):
-        super(RDSResponseError, self).__init__(status, body)
+    def __init__(self, body=None):
+        super(RDSResponseError, self).__init__(body)
 
 
 class OSSResponseError(FootmarkServerError):
@@ -124,8 +124,8 @@ class OSSResponseError(FootmarkServerError):
     Error in response from ECS.
     """
 
-    def __init__(self, status, body=None):
-        super(OSSResponseError, self).__init__(status, body)
+    def __init__(self, body=None):
+        super(OSSResponseError, self).__init__(body)
 
 
 class JSONResponseError(FootmarkServerError):

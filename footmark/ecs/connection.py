@@ -87,28 +87,35 @@ class ECSConnection(ACSQueryConnection):
                       PendingDeprecationWarning) 
 
         params = {}
+        results = []
         if instance_ids:
             self.build_list_params(params, instance_ids, 'InstanceIds')
         if filters:
             self.build_filter_params(params, filters)
         if max_results is not None:
-            params['MaxResults'] = max_results
-        instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
-        for inst in instances:
-            filters = {}
-            filters['instance_id'] = inst.id
-            volumes = self.get_all_volumes(filters=filters)
-            block_device_mapping = {}
-            for vol in volumes:
-                block_device_mapping[vol.id] = vol
-            setattr(inst, 'block_device_mapping', block_device_mapping)
-            filters = {}
-            filters['security_group_id'] = inst.security_group_id
-            security_groups = self.get_all_security_groups(filters=filters)
-            setattr(inst, 'security_groups', security_groups)
+            params['MaxResults'] = max_results      
 
-        return instances
+        try:
+            results = self.get_list('DescribeInstances', params, ['Instances', Instance])
+            for inst in results:
+                filters = {}
+                filters['instance_id'] = inst.id
+                volumes = self.get_all_volumes(filters=filters)
+                block_device_mapping = {}
+                for vol in volumes:
+                    block_device_mapping[vol.id] = vol
+                setattr(inst, 'block_device_mapping', block_device_mapping)
+                filters = {}
+                filters['security_group_id'] = inst.security_group_id
+                security_groups = self.get_all_security_groups(filters=filters)
+                setattr(inst, 'security_groups', security_groups)
 
+            return results
+        except Exception as ex:
+            error_code = ex.error_code
+            error_msg = ex.message
+            results.append({"Error Code": error_code, "Error Message": error_msg})
+     
     def describe_instances(self, instance_ids=None, filters=None, max_results=None):
         """
         Retrieve all the instance associated with your account.
@@ -290,7 +297,7 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, group_ids, 'SecurityGroupIds')
 
         try:
-            results = self.get_status('DescribeSecurityGroups', params)
+            results = self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
         except Exception as ex:
             error_code = ex.error_code
             error_msg = ex.message
@@ -638,6 +645,12 @@ class ECSConnection(ACSQueryConnection):
                         error_code = ex.error_code
                         error_msg = ex.message
                         results.append({"Error Code": error_code, "Error Message": error_msg})
+                    else:
+                        # restart instance after password changed
+                        if 'password' in attribute:
+                            instance_ids = []
+                            instance_ids.append(attribute['id'])
+                            self.reboot_instances(instance_ids=instance_ids)
 
         return changed, results
 
@@ -1161,7 +1174,7 @@ class ECSConnection(ACSQueryConnection):
 
         return changed, disk_id, results
 
-    def attach_disk(self, disk_id, instance_id, device=None, delete_with_instance=None):
+    def attach_disk(self, disk_id, instance_id, delete_with_instance=None):
         """
         Method to attach a disk to instance
 
@@ -1170,9 +1183,6 @@ class ECSConnection(ACSQueryConnection):
 
         :type disk_id: string
         :param disk_id: The disk ID in the cloud
-
-        :type device: string
-        :param device: the device name
 
         :type delete_with_instance: string
         :param delete_with_instance: value depicting should disk be deleted with instance.
@@ -1207,11 +1217,7 @@ class ECSConnection(ACSQueryConnection):
 
         # Disk Id, the disk_id to be mapped
         self.build_list_params(params, disk_id, 'DiskId')
-
-        # Device
-        if device:
-            self.build_list_params(params, device, 'Device')
-
+                                                               
         # should the disk be deleted with instance
         if delete_with_instance:
             if str(delete_with_instance).lower().strip() == 'yes':
