@@ -5,8 +5,7 @@ from footmark.ecs.ecsobject import *
 
 
 class SecurityGroup(TaggedECSObject):
-    def __init__(self, connection=None, owner_id=None,
-                 name=None, description=None, id=None):
+    def __init__(self, connection=None):
         super(SecurityGroup, self).__init__(connection)
         self.tags = {}
 

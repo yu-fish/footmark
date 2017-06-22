@@ -27,7 +27,7 @@ class Disk(TaggedECSObject):
         self.tag = {}
 
     def __repr__(self):
-        return 'Volume:%s' % self.id
+        return 'Disk:%s' % self.id
 
     def __getattr__(self, name):
         if name.startswith('volume'):
@@ -61,7 +61,7 @@ class Disk(TaggedECSObject):
     def _update(self, updated):
         self.__dict__.update(updated.__dict__)
 
-    def update(self, validate=False, dry_run=False):
+    def update(self, validate=False):
         """
         Update the data associated with this volume by querying ECS.
 
@@ -73,13 +73,15 @@ class Disk(TaggedECSObject):
                          returned from ECS.
         """
         # Check the resultset since Eucalyptus ignores the volumeId param
-        unfiltered_rs = self.connection.get_all_volumes(
-            [self.id],
-            dry_run=dry_run
-        )
+        unfiltered_rs = self.connection.get_all_volumes([self.id])
         rs = [x for x in unfiltered_rs if x.id == self.id]
         if len(rs) > 0:
             self._update(rs[0])
+        # rs = self.connection.get_all_volumes([self.id])
+        # if len(rs) > 0:
+        #     for r in rs:
+        #         if r.id == self.id:
+        #             self._update(r)
         elif validate:
             raise ValueError('%s is not a valid Volume ID' % self.id)
         return self.status

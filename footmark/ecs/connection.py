@@ -8,14 +8,17 @@ import warnings
 import six
 import time
 import json
-
+import logging
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
 from footmark.ecs.securitygroup import SecurityGroup
 from footmark.ecs.volume import Disk
-from footmark.exception import ECSResponseError
+from footmark.exception import ECSResponseError, FootmarkServerError
 from functools import wraps
+from footmark.resultset import ResultSet
+# from aliyunsdkecs.request.v20140526.DescribeInstanceAttributeRequest import
+from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
 class ECSConnection(ACSQueryConnection):
@@ -86,26 +89,33 @@ class ECSConnection(ACSQueryConnection):
                        'replaced with get_all_instances.'),
                       PendingDeprecationWarning)
 
-        params = {}
-        if instance_ids:
-            self.build_list_params(params, instance_ids, 'InstanceIds')
-        if filters:
-            self.build_filter_params(params, filters)
-        if max_results is not None:
-            params['MaxResults'] = max_results
-        instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
-        for inst in instances:
-            filters = {}
-            filters['instance_id'] = inst.id
-            volumes = self.get_all_volumes(filters=filters)
-            block_device_mapping = {}
-            for vol in volumes:
-                block_device_mapping[vol.id] = vol
-            setattr(inst, 'block_device_mapping', block_device_mapping)
-            filters = {}
-            filters['security_group_id'] = inst.security_group_id
-            security_groups = self.get_all_security_groups(filters=filters)
-            setattr(inst, 'security_groups', security_groups)
+        try:
+            params = {}
+            if instance_ids:
+                self.build_list_params(params, instance_ids, 'InstanceIds')
+            if filters:
+                self.build_filter_params(params, filters)
+            if max_results is not None:
+                params['MaxResults'] = max_results
+            instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
+            for inst in instances:
+                filters = {}
+                filters['instance_id'] = inst.id
+                volumes = self.get_all_volumes(filters=filters)
+                block_device_mapping = {}
+                for vol in volumes:
+                    block_device_mapping[vol.id] = vol
+                setattr(inst, 'block_device_mapping', block_device_mapping)
+                if inst.security_group_ids:
+                    group_ids = []
+                    for sg_id in inst.security_group_ids['security_group_id']:
+                        group_ids.append(str(sg_id))
+                        security_groups = self.get_all_security_groups(group_ids=group_ids)
+                        setattr(inst, 'security_groups', security_groups)
+        except ServerException as e:
+            raise e
+        except Exception as e:
+            raise e
 
         return instances
 
@@ -180,7 +190,10 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.get_status('StopInstance', params):
+                self.get_status('StopInstance', params)
+
+            for instance_id in instance_ids:
+                if self.wait_for_instance_status(instance_id, "Stopped"):
                     results.append(instance_id)
         return results
 
@@ -204,7 +217,10 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.get_status('RebootInstance', params):
+                self.get_status('RebootInstance', params)
+
+            for instance_id in instance_ids:
+                if self.wait_for_instance_status(instance_id, "Running"):
                     results.append(instance_id)
 
         return results
@@ -231,7 +247,7 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.get_status('DeleteInstance', params):
+                if self.delete_object_retry('DeleteInstance', params):
                     result.append(instance_id)
         return result
 
@@ -293,11 +309,12 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, group_ids, 'SecurityGroupIds')
 
         try:
-            results = self.get_status('DescribeSecurityGroups', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+            results = self.get_status('DescribeSecurityGroups', params, ResultSet)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error:": e})
 
         return False, results
 
@@ -549,63 +566,48 @@ class ECSConnection(ACSQueryConnection):
             if len(ids) == count:
                 self.build_list_params(params, ids, 'ClientToken')
 
+        instances = []
+
         for i in range(count):
             # CreateInstance method call, returns newly created instanceId
             try:
-                response = self.get_status('CreateInstance', params)
-                instance_id = response['InstanceId']
+                result = self.get_object('CreateInstance', params, ResultSet)
+                instance_id = result.instance_id
                 results.append({"instance_id": instance_id})
                 changed = True
 
-            except Exception as ex:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})
-            else:
-                try:
-                    time.sleep(30)
-                    # Start newly created Instance
-                    self.start_instances(instance_id)
-                    # get instance in running mode
-                    self.check_instance_is_running(instance_id=instance_id)
+                self.wait_for_instance_status(instance_id, "Stopped")
+                # Allocate allocate public ip
+                if allocate_public_ip:
+                    allocate_public_ip_params = {}
+                    self.build_list_params(allocate_public_ip_params, instance_id, 'InstanceId')
+                    self.get_status('AllocatePublicIpAddress', allocate_public_ip_params)
+                # Allocate EIP Address
+                if bind_eip:
+                    allocate_eip_params = {}
+                    self.build_list_params(
+                        allocate_eip_params, bind_eip, 'AllocationId')
+                    self.build_list_params(
+                        allocate_eip_params, instance_id, 'InstanceId')
+                    self.get_status('AssociateEipAddress', allocate_eip_params)
 
-                except Exception as ex:
-                    error_code = ex.error_code
-                    error_msg = ex.message
-                    results.append({"Error Code": error_code, "Error Message": error_msg})
-                else:
-                    # Allocate Public IP Address
-                    try:
-                        if allocate_public_ip:
-                            # allocate allocate public ip
-                            allocate_public_ip_params = {}
-                            self.build_list_params(allocate_public_ip_params, instance_id, 'InstanceId')
-                            public_ip_address_status = self.get_status('AllocatePublicIpAddress',
-                                                                       allocate_public_ip_params)
-                    except Exception as ex:
-                        error_code = ex.error_code
-                        error_msg = ex.message
-                        results.append({"Error Code": error_code, "Error Message": error_msg})
+                # Start newly created Instance
+                self.start_instances(instance_id)
+                # get instance in running mode
+                self.wait_for_instance_status(instance_id, "Running")
 
-                    # Allocate EIP Address
-                    try:
-                        if bind_eip:
-                            allocate_eip_params = {}
-                            self.build_list_params(
-                                allocate_eip_params, bind_eip, 'AllocationId')
-                            self.build_list_params(
-                                allocate_eip_params, instance_id, 'InstanceId')
-                            eip_address = self.get_status(
-                                'AssociateEipAddress', allocate_eip_params)
-                    except Exception as ex:
-                        error_code = ex.error_code
-                        error_msg = ex.message
-                        results.append({"Error Code": error_code, "Error Message": error_msg})
+                instances.append(self.get_instance_details(instance_id))
 
-        if str(wait).lower() in ['yes', 'true'] and wait_timeout:
-            time.sleep(wait_timeout)
+            except ECSResponseError as e:
+                results.append({"Error Code": e.error_code, "Error Message": e.message,
+                                "RequestId": e.request_id, "Http Status": e.http_status})
+            except Exception as e:
+                results.append({"Error": e})
 
-        return changed, results
+        # if str(wait).lower() in ['yes', 'true'] and wait_timeout:
+        #     time.sleep(wait_timeout)
+
+        return changed, instances, results
 
     def modify_instance(self, attributes=None):
         """
@@ -618,7 +620,6 @@ class ECSConnection(ACSQueryConnection):
         """
         results = []
         changed = False
-
         if attributes:
             for attribute in attributes:
                 if attribute:
@@ -635,13 +636,17 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, attribute['host_name'], 'HostName')
 
                     try:
-                        result = self.get_status('ModifyInstanceAttribute', params)
-                        results.append(result)
-                        changed = True
-                    except Exception as ex:
-                        error_code = ex.error_code
-                        error_msg = ex.message
-                        results.append({"Error Code": error_code, "Error Message": error_msg})
+                        changed = self.get_status('ModifyInstanceAttribute', params)
+                        if 'password' in attribute:
+                            self.reboot_instances(instance_ids=[attribute['id']], force=True)
+                            self.wait_for_instance_status(attribute['id'], "Running")
+                        if changed:
+                            results.append("Instance %s attribute has been modified successfully.")
+                    except ServerException as e:
+                        results.append({"Error Code": e.error_code, "Error Message": e.message,
+                                        "RequestId": e.request_id, "Http Status": e.http_status})
+                    except Exception as e:
+                        results.append({"Error:": e})
 
         return changed, results
 
@@ -674,11 +679,12 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, pagesize, 'PageSize')
 
         try:
-            results = self.get_status('DescribeInstanceStatus', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+            results = self.get_object('DescribeInstanceStatus', params, ResultSet)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error": e})
 
         return False, results
 
@@ -694,49 +700,39 @@ class ECSConnection(ACSQueryConnection):
 
         :return: Success message, confirming joining security group or error message if any
         """
-        params = {}
         results = []
+        success_instance_ids = []
+        failed_instance_ids = []
         changed = False
 
         if not isinstance(instance_ids, list):
-            changed = False
-            results.append("Error Code: " + "Invalid DataType")
-            results.append("Error Message: " + "instance_ids must be of type list")
-            return changed, results
+            results.append({"Error Message": "The specified instance_ids must be of type list"})
+            return changed, results, success_instance_ids, failed_instance_ids
 
-        instance_count = len(instance_ids)
-        success_instance_ids = []
-        failed_instance_ids = []
-
-        for counter in range(0, instance_count):
-            id_of_instance = instance_ids[counter]
-
+        for inst in instance_ids:
+            params = {}
             # Instance Id, which is to be added to a security group
-            self.build_list_params(params, id_of_instance, 'InstanceId')
+            self.build_list_params(params, inst, 'InstanceId')
 
             # Security Group ID, an already existing security group, to which instance is added
             self.build_list_params(params, group_id, 'SecurityGroupId')
 
             # Method Call, to perform adding action
             try:
-                obtained_result = self.get_status('JoinSecurityGroup', params)
-                results.append("Successfully added instance '" + str(
-                    id_of_instance) + "' to security group " + str(group_id))
+                self.get_status('JoinSecurityGroup', params)
 
                 # Verifying whether operation got performed successfully
-                self.verify_join_remove_securitygrp(id_of_instance, group_id, 'join')
-                success_instance_ids.append(id_of_instance)
-                changed = True
+                changed = self.verify_join_remove_securitygrp(inst, group_id, 'join')
+                if changed:
+                    success_instance_ids.append(inst)
 
-            except Exception as ex:
-                error_code = ex.error_code
-                failed_instance_ids.append(id_of_instance)
-                error_msg = "Join security group failed for instance: '" + str(
-                    id_of_instance) + "' to security group " + str(
-                    group_id)
-                results.append(error_msg)
-                results.append("Error Code: " + error_code)
-                results.append("Error Message: " + ex.message)
+            except ServerException as e:
+                failed_instance_ids.append(inst)
+                results.append({"Error Code": e.error_code, "Error Message": e.message,
+                                "RequestId": e.request_id, "Http Status": e.http_status})
+            except Exception as e:
+                failed_instance_ids.append(inst)
+                results.append({"Error": e})
 
         return changed, results, success_instance_ids, failed_instance_ids
 
@@ -754,59 +750,48 @@ class ECSConnection(ACSQueryConnection):
         """
         params = {}
         results = []
-
-        if not isinstance(instance_ids, list):
-            changed = False
-            results.append("Error Code: " + "Invalid DataType")
-            results.append("Error Message: " + "instance_ids must be of type list")
-            return changed, results
-
-        instance_count = len(instance_ids)
-        changed = False
-
         success_instance_ids = []
         failed_instance_ids = []
+        changed = False
 
-        for counter in range(0, instance_count):
-            id_of_instance = instance_ids[counter]
+        if not isinstance(instance_ids, list):
+            results.append({"Error Message": "The specified instance_ids must be of type list"})
+            return changed, results, success_instance_ids, failed_instance_ids
 
+        # Security Group ID, an already existing security group, from which instance is removed
+        self.build_list_params(params, group_id, 'SecurityGroupId')
+        for inst in instance_ids:
             # Instance Id to be removed from a security group
-            self.build_list_params(params, id_of_instance, 'InstanceId')
-
-            # Security Group ID, an already existing security group, from which instance is removed
-            self.build_list_params(params, group_id, 'SecurityGroupId')
+            self.build_list_params(params, inst, 'InstanceId')
 
             # Method Call, to perform adding action
             try:
-                obtained_result = self.get_status('LeaveSecurityGroup', params)
-                results.append("Successfully removed instance " + str(
-                    id_of_instance) + " from security group " + str(group_id))
-
+                self.get_status('LeaveSecurityGroup', params)
                 # Verifying whether operation got performed successfully
-                self.verify_join_remove_securitygrp(id_of_instance, group_id, 'remove')
-                success_instance_ids.append(id_of_instance)
-                changed = True
+                changed = self.verify_join_remove_securitygrp(inst, group_id, 'remove')
+                if changed:
+                    success_instance_ids.append(inst)
 
-            except Exception as ex:
-                error_code = ex.error_code
-                failed_instance_ids.append(id_of_instance)
-                error_msg = "Leave security group failed for instance: '" + str(
-                    id_of_instance) + "' from security group " + str(
-                    group_id)
-
-                results.append(error_msg)
-                results.append("Error Code" + error_code)
-                results.append("Error Message" + ex.message)
+            except ServerException as e:
+                failed_instance_ids.append(inst)
+                results.append({"Error Code": e.error_code, "Error Message": e.message,
+                                "RequestId": e.request_id, "Http Status": e.http_status})
+            except Exception as e:
+                failed_instance_ids.append(inst)
+                results.append({"Error": e})
 
         return changed, results, success_instance_ids, failed_instance_ids
 
-    def get_all_security_groups(self, group_ids=None, filters=None):
+    def get_all_security_groups(self, group_ids=None, vpc_id=None, filters=None):
         """
         Get all security groups associated with your account in a region.
 
         :type group_ids: list
         :param group_ids: A list of IDs of security groups to retrieve for
                           security groups within a VPC.
+                          
+        :type vpc_id: string
+        :param vpc_id: ID of vpc which security groups belong.
 
         :type filters: dict
         :param filters: Optional filters that can be used to limit
@@ -823,7 +808,9 @@ class ECSConnection(ACSQueryConnection):
         """
         params = {}
         if group_ids:
-            self.build_list_params(params, group_ids, 'SecurityGroupId')
+            self.build_list_params(params, group_ids, 'SecurityGroupIds')
+        if vpc_id:
+            self.build_list_params(params, vpc_id, 'VpcId')
         if filters:
             self.build_filter_params(params, filters)
         return self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
@@ -882,16 +869,15 @@ class ECSConnection(ACSQueryConnection):
 
         # CreateSecurityGroup method call, returns newly created security group id
         try:
-            response = self.get_status('CreateSecurityGroup', params)
-            security_group_id = response['SecurityGroupId']
+            response = self.get_object('CreateSecurityGroup', params, ResultSet)
+            security_group_id = response.security_group_id
             results.append("Security Group Creation Successful")
             changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            msg = ex.message
-            results.append("Following error occurred while creating Security Group")
-            results.append("error Code: " + error_code)
-            results.append("Message: " + msg)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error:": e})
 
         return changed, security_group_id, results
 
@@ -1006,9 +992,9 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, rule['nic_type'], 'NicType')
 
                     try:
-                        self.get_status(api_action.get(rule_type), params)
-                        success_rule_count += 1
-                        changed = True
+                        changed = self.get_status(api_action.get(rule_type), params)
+                        if changed:
+                            success_rule_count += 1
 
                     except Exception as ex:
                         error_code = ex.error_code
@@ -1029,6 +1015,46 @@ class ECSConnection(ACSQueryConnection):
 
         return changed, inbound_failed_rules, outbound_failed_rules, result_details
 
+    def get_security_group_attribute(self, group_id=None, nic_type=None, direction='all'):
+        """
+        Querying Security Group List returns the basic information about all
+              user-defined security groups.
+
+        :type  group_id: String
+        :param group_id: ID of security groups id
+
+        :type nic_type: String
+        :param nic_type: Network type of security group. The choice value is 'internet' or 'intranet'.
+
+        :type direction: String
+        :param direction: The direction of security group rule. The choice value is 'egress', 'ingress' or 'all', and 'all' is default.
+
+        :rtype: dict
+        :return: Returns a dictionary of security group information
+
+                """
+
+        params = {}
+        results = []
+        group = None
+
+        if group_id:
+            self.build_list_params(params, group_id, 'SecurityGroupId')
+        if nic_type:
+            self.build_list_params(params, nic_type, 'NicType')
+        if direction:
+            self.build_list_params(params, direction, 'Direction')
+
+        try:
+            group = self.get_object('DescribeSecurityGroupAttribute', params, SecurityGroup)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error111:": e, "group:": group})
+
+        return False, group, results
+
     def delete_security_group(self, group_ids):
         """
         Delete Security Group , delete security group inside particular region.
@@ -1047,24 +1073,18 @@ class ECSConnection(ACSQueryConnection):
             if group_id:
                 self.build_list_params(params, group_id, 'SecurityGroupId')
             try:
-                response = self.get_status('DescribeSecurityGroups', params)
-                if len(response) > 0:
-                    json_obj = response
-                    total_instance = json_obj['TotalCount']
-                    if total_instance > 0:
-                        for items in json_obj['SecurityGroups']['SecurityGroup']:
-                            if group_id == items['SecurityGroupId']:
-                                response = self.get_status('DeleteSecurityGroup', params)
-                                results.append(response)
-                                changed = True
-                    else:
-                        results.append({"Error Code": "SecurityGroupId does not exist",
-                                        "Error Message": "SecurityGroupId does not exist"})
-            except Exception as ex:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
-                changed = False
+                response = self.get_list('DescribeSecurityGroups', params, ["SecurityGroups", SecurityGroup])
+                if response and len(response) > 0:
+                    for item in response:
+                        if group_id == item.id:
+                            changed = self.get_status('DeleteSecurityGroup', params)
+                else:
+                    results.append({"Error Message": "The specified SecurityGroupIds %s does not exist in the record." % group_id})
+            except ServerException as e:
+                results.append({"Error Code": e.error_code, "Error Message": e.message,
+                                "RequestId": e.request_id, "Http Status": e.http_status})
+            except Exception as e:
+                results.append({"Error": e})
 
         return changed, results
 
@@ -1154,18 +1174,18 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, snapshot_id, 'SnapshotId')
 
         try:
-            response = self.get_status('CreateDisk', params)
-            disk_id = response['DiskId']
+            rs = self.get_object('CreateDisk', params, ResultSet)
             results.append("Disk Creation Successful")
             changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error:": e})
 
-        return changed, disk_id, results
+        return changed, str(rs.disk_id), results
 
-    def attach_disk(self, disk_id, instance_id, device=None, delete_with_instance=None):
+    def attach_disk(self, disk_id, instance_id, delete_with_instance=None):
         """
         Method to attach a disk to instance
 
@@ -1174,9 +1194,6 @@ class ECSConnection(ACSQueryConnection):
 
         :type disk_id: string
         :param disk_id: The disk ID in the cloud
-
-        :type device: string
-        :param device: the device name
 
         :type delete_with_instance: string
         :param delete_with_instance: value depicting should disk be deleted with instance.
@@ -1188,33 +1205,23 @@ class ECSConnection(ACSQueryConnection):
         results = []
         changed = False
 
-        id_of_instance = instance_id
-        disk_instance_id, disk_status, result_instance = self.retrieve_instance_for_disk(disk_id)
+        if not instance_id:
+            results.append({"Error": "Disk %s is not attached to any instance, instance id: %s" % (disk_id, instance_id)})
+            return changed, results
 
-        if disk_status:
-            if result_instance:
-                if 'error code' in str(result_instance).lower():
-                    results = result_instance
-                    return changed, results
-            if str(disk_status).strip().lower() == 'in_use':
-                error_code = "IncorrectDiskStatus"
-                error_msg = " The disk " + disk_id + " is in_use.It is attached to instance " + disk_instance_id
-                results.append({"Error Code :": error_code, "Error Message :": error_msg})
-                return changed, results
-        else:
-            if 'error code' in str(result_instance).lower():
-                results = result_instance
-                return changed, results
+        _, disk_status, _, result = self.retrieve_instance_for_disk(disk_id)
 
-                # Instance Id, which is to be added to a security group
-        self.build_list_params(params, id_of_instance, 'InstanceId')
+        if result:
+            return changed, result
+        if disk_status and str(disk_status).strip().lower() != "available":
+            results.append({"Error": "The disk %s status %s does not support to operate attachment." % (disk_id, disk_status)})
+            return changed, results
+
+        # Instance Id, which is used to attach disk
+        self.build_list_params(params, instance_id, 'InstanceId')
 
         # Disk Id, the disk_id to be mapped
         self.build_list_params(params, disk_id, 'DiskId')
-
-        # Device
-        if device:
-            self.build_list_params(params, device, 'Device')
 
         # should the disk be deleted with instance
         if delete_with_instance:
@@ -1229,14 +1236,15 @@ class ECSConnection(ACSQueryConnection):
 
         # Method Call, to perform adding action
         try:
-            obtained_result = self.get_status('AttachDisk', params)
-            results.append(obtained_result)
-            results.append("Disk " + str(disk_id) + " attached successfully to instance " + str(instance_id))
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+            if self.get_status('AttachDisk', params):
+                changed, result = self.wait_for_disk_status(disk_id=disk_id, disk_status="in_use")
+                if not changed:
+                    results.append(result)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error": e})
 
         return changed, results
 
@@ -1250,33 +1258,19 @@ class ECSConnection(ACSQueryConnection):
         :return: Return status of Operation
         """
         params = {}
-        results = []
         changed = False
-
         # region retrieve InstanceId from DiskId
-        instance_id, disk_status, result_instance = self.retrieve_instance_for_disk(disk_id)
+        instance_id, _, disk_portable, results = self.retrieve_instance_for_disk(disk_id)
 
-        if disk_status:
-            if result_instance:
-                if 'error code' in str(result_instance).lower():
-                    results = result_instance
-                    return changed, results, instance_id
-            if str(disk_status).strip().lower() == 'available':
-                error_code = "IncorrectDiskStatus"
-                error_msg = " The disk " + disk_id + " is already available, can not detach"
-                results.append({"Error Code :": error_code, "Error Message :": error_msg})
-                return changed, results, instance_id
-        else:
-            if 'error code' in str(result_instance).lower():
-                results = result_instance
-                return changed, results, instance_id
+        if results:
+            return changed, results, instance_id
 
-        if instance_id == None:
-            if len(result_instance) == 0:
-                error_code = "Instance not retrieved"
-                # "Instance_id could not be retreived from disk_id"
-                error_msg = "Disk " + str(disk_id) + " is not attached to any instance"
-                results.append({"Error Code :": error_code, "Error Message :": error_msg})
+        if not disk_portable:
+            results.append({"Error Message": "The disk %s can be detached, and its portable is %s." % (disk_id, disk_portable)})
+            return changed, results, instance_id
+
+        if not instance_id:
+            results.append({"Error Message": "Disk %s is not attached to any instance, instance id: %s" % (disk_id, instance_id)})
             return changed, results, instance_id
 
         # Instance Id, which is to be added to a detach disk
@@ -1286,53 +1280,48 @@ class ECSConnection(ACSQueryConnection):
         self.build_list_params(params, disk_id, 'DiskId')
 
         try:
-            obtained_result = self.get_status('DetachDisk', params)
-            results.append(obtained_result)
-            results.append("Disk " + str(disk_id) + " detached successfully from instance " + instance_id)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+            if self.get_status('DetachDisk', params):
+                changed, result = self.wait_for_disk_status(disk_id=disk_id, disk_status="available")
+                if not changed:
+                    results.append(result)
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error": e})
 
         return changed, results, instance_id
 
     def retrieve_instance_for_disk(self, disk_id):
         # method is used to retrieve instance_id from disk_id, it is required in detach disk.
         # In detach disk instance id is retrieved from disk, it is not taken from ansible.
-        params = {}
         results = []
 
         instance_id = None
+        disk_portable = None
         disk_status = None
+        disks = None
         try:
-            disk_ids = [disk_id]
-            self.build_list_params(params, disk_ids, 'DiskIds')
+            disks = self.get_all_volumes([disk_id])
+            if not disks or len(disks) < 1 or not disks[0]:
+                return False, {"Error": "The specified disk %s is not found." % disk_id}
 
-            instance_obj = self.get_status('DescribeDisks', params)
+            # wait until disk status becomes specified
+            if disk_status == str(disks[0].status).strip().lower():
+                return True, None
 
-            if instance_obj:
-                if instance_obj['TotalCount'] != 0:
-                    # A disk will be attached to 1 instance at a time.
-                    # Hence retrieving object directly in case od detach disk.
-                    if instance_obj['Disks']['Disk'] != None and len(instance_obj['Disks']['Disk']) > 0:
-                        instance_id = instance_obj['Disks']['Disk'][0]['InstanceId']
-                        disk_status = instance_obj['Disks']['Disk'][0]['Status']
-                else:
-                    error_code = "InvalidDiskId.NotFound"
-                    error_msg = "The specified disk does not exist."
-                    results.append({"Error Code": error_code, "Error Message": error_msg})
-            else:
-                error_code = "InvalidDiskId.NotFound"
-                error_msg = "The specified disk does not exist."
-                results.append({"Error Code": error_code, "Error Message": error_msg})
+            disk = disks[0]
+            instance_id = str(disk.instance_id)
+            disk_portable = str(disk.portable)
+            disk_status = str(disk.status)
 
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error Message::::": e, "disks::::": disks.disks})
 
-        return instance_id, disk_status, results
+        return instance_id, disk_status, disk_portable, results
 
     def delete_disk(self, disk_id):
         """
@@ -1355,18 +1344,14 @@ class ECSConnection(ACSQueryConnection):
             disk_list = self.get_all_volumes(volume_ids=[disk_id])
 
             if len(disk_list) > 0:
-                obtained_result = self.get_status('DeleteDisk', params)
-                results.append(obtained_result)
-                results.append("disk " + disk_id + " deleted successfully")
-                changed = True
+                changed = self.delete_object_retry('DeleteDisk', params)
             else:
-                results.append({"Error Code:": "InvalidDiskId.NotFound", "Error Message:": "Disk not exist"})
-
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code :": error_code, "Error Message :": error_msg})
-
+                results.append({"Error Message": "Disk %s is not found, and deleting it failed." % disk_id})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error": e})
         return changed, results
 
     def create_image(self, snapshot_id=None, image_name=None, image_version=None, description=None,
@@ -1515,11 +1500,11 @@ class ECSConnection(ACSQueryConnection):
                     changed = False
                 else:
                     results.append(image_sharing_results)
-        except Exception as ex:
-            changed = False
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error:": e})
 
         return changed, image_id, results, request_id
 
@@ -1597,10 +1582,12 @@ class ECSConnection(ACSQueryConnection):
                             changed = True
                 else:
                     results.append({"Error Code": "Image does not exist", "Error Message": "Image does not exist"})
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+            changed = False
+        except Exception as e:
+            results.append({"Error:": e})
             changed = False
 
         return changed, results
@@ -1632,10 +1619,11 @@ class ECSConnection(ACSQueryConnection):
                 else:
                     results.append({"Error Code": "Invalid.SnapshotId", "Error Message": "The snapshot id not found"})
                     break
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        except ServerException as e:
+            results.append({"Error Code": e.error_code, "Error Message": e.message,
+                            "RequestId": e.request_id, "Http Status": e.http_status})
+        except Exception as e:
+            results.append({"Error:": e})
 
         return results, progress, changed
 
@@ -1651,13 +1639,7 @@ class ECSConnection(ACSQueryConnection):
 
         self.build_list_params(params, instance_id, 'InstanceId')
 
-        try:
-            instance_details = self.get_status('DescribeInstanceAttribute', params)
-        except Exception as ex:
-            results.append("Error in retrieving instance details due to error code '" +
-                           ex.error_code + "' and message '" + ex.message + "'")
-
-        return instance_details, results
+        return self.get_object('DescribeInstanceAttribute', params, Instance)
 
     # retry decorator
     def retry(ExceptionToCheck, tries=10, delay=30, backoff=2, logger=None):
@@ -1681,25 +1663,57 @@ class ECSConnection(ACSQueryConnection):
         return deco_retry
 
     # Use retry decorator
-    @retry(Exception, tries=3)
-    def check_instance_is_running(self, instance_id):
+    @retry(Exception, tries=10)
+    def wait_for_instance_status(self, instance_id, status):
         try:
-            params = {}
-            self.build_list_params(params, instance_id, 'InstanceId')
-            # get instance details
-            instance_info = self.get_status('DescribeInstanceAttribute', params)
-
-            if instance_info:
-                # wait until instance status becomes running
-                instance_status = str(instance_info[u'Status'])
-                while instance_status not in ["Running", "running"]:
-                    # get instance details
-                    time.sleep(30)
-                    instance_info = self.get_status('DescribeInstanceAttribute', params)
-                    instance_status = str(instance_info[u'Status'])
+            instance = self.get_instance_details(instance_id)
+            if instance:
+                # wait until instance status is expected
+                while instance.status not in [status, str(status).lower()]:
+                    time.sleep(10)
+                    instance = self.get_instance_details(instance_id)
 
         except Exception:
             raise Exception
+
+    @retry(Exception, tries=3)
+    def wait_for_disk_status(self, disk_id, disk_status):
+        """
+        To verify disk status has become expected after attaching or detaching disk
+        """
+        done = False
+        try:
+            while not done:
+                time.sleep(3)
+                disks = self.get_all_volumes([disk_id])
+                if not disks or len(disks) < 1 or not disks[0]:
+                    return False, {"Error": "The specified disk %s is not found." % disk_id}
+
+                # wait until disk status becomes specified
+                if disk_status == str(disks[0].status).strip().lower():
+                    return True, None
+
+        except Exception:
+            raise Exception
+
+    @retry(Exception, tries=4)
+    def delete_object_retry(self, action, params):
+        """
+        Using retry to deleting disk when disk is 'Initializing'
+        """
+        done = False
+        try:
+            while not done:
+                time.sleep(5)
+                try:
+                    done = self.get_status(action, params)
+                except ServerException as e:
+                    if str(e.error_code) == "IncorrectInstanceStatus.Initializing":
+                        continue
+
+        except Exception as ex:
+            raise ex
+        return done
 
     @retry(Exception, tries=3)
     def verify_join_remove_securitygrp(self, instance_id, group_id, mode):
@@ -1710,7 +1724,7 @@ class ECSConnection(ACSQueryConnection):
         count = 0
         id_of_instance = [instance_id]
         try:
-            while done != True:
+            while not done:
                 time.sleep(5)
                 instance_list = self.get_all_instances(id_of_instance, None, None)
                 if len(instance_list) > 0:
@@ -1718,18 +1732,21 @@ class ECSConnection(ACSQueryConnection):
                         for inst in instance_list:
                             if len(inst.security_group_ids['security_group_id']) > 0:
                                 for grp in inst.security_group_ids['security_group_id']:
-                                    if grp == group_id:
+                                    if str(grp) == group_id:
                                         done = True
+                                        break
 
                     elif mode.lower() == 'remove':
                         for inst in instance_list:
                             if len(inst.security_group_ids['security_group_id']) > 0:
                                 for grp in inst.security_group_ids['security_group_id']:
-                                    if grp == group_id:
+                                    if str(grp) == group_id:
                                         count = count + 1
                                 if count == 0:
                                     done = True
+                                    break
         except Exception as ex:
-            raise Exception
+            raise ex
 
         return done
+
