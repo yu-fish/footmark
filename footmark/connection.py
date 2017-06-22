@@ -16,7 +16,6 @@ from footmark.resultset import ResultSet
 
 from aliyunsdkcore import client
 from aliyunsdkcore.acs_exception.exceptions import ServerException
-# from aliyunsdkecs.request.v20140526.DescribeInstanceAttributeRequest import
 
 
 class ACSAuthConnection(object):
@@ -100,18 +99,6 @@ class ACSQueryConnection(ACSAuthConnection):
     def build_list_params(self, params, items, label):
         params['set_%s' % label] = items
 
-    # def parse_response(self, markers, response, connection):
-    #     results = []
-    #     response = json.loads(response, encoding='UTF-8')
-    #     if markers and markers[0] in response:
-    #         for value in response[markers[0]].itervalues():
-    #             if value is None or len(value) < 1:
-    #                 return results
-    #             element = markers[1](connection)
-    #             for item in value:
-    #                 self.parse_dict(element, item)
-    #             results.append(element)
-    #     return results
     def parse_response(self, markers, body, connection):
         results = []
         body = json.loads(body, encoding='UTF-8')
@@ -119,9 +106,7 @@ class ACSQueryConnection(ACSAuthConnection):
             markers = ["", ResultSet]
 
         result_set = ResultSet
-        print "()()()()()()()"
         if not markers[0] and markers[1] is not ResultSet:
-            print "******* markers[1] %s" % markers[1]
             result_set = markers[1](connection)
 
         for key, value in body.items():
@@ -145,21 +130,7 @@ class ACSQueryConnection(ACSAuthConnection):
                     setattr(element, k, v)
                     results.append(element)
             return results
-        print "******* reset_set %s" % result_set.Id
         return result_set
-
-    def parse_dict(self, element, dict_data):
-        if not isinstance(dict_data, dict):
-            return
-
-        for k, v in dict_data.items():
-            if isinstance(v, dict):
-                value = {}
-                for kk, vv in v.items():
-                    value[self.convert_name(kk)] = vv
-                v = value
-                self.parse_dict(element, v)
-            setattr(element, self.convert_name(k), v)
 
     def parse_object(self, obj, response, connection):
         response = json.loads(response, encoding='UTF-8')
@@ -188,16 +159,6 @@ class ACSQueryConnection(ACSAuthConnection):
         setattr(element, self.convert_name(key), value)
         return
 
-    # def convert_name(self, name):
-    #     if name:
-    #         new_name = ''
-    #         for ch in name:
-    #             if ch.isupper():
-    #                 ch = '_' + ch.lower()
-    #             new_name += ch
-    #         if new_name.startswith('_'):
-    #             new_name = new_name[1:]
-    #         return new_name
     def convert_name(self, name):
         if name:
             new_name = ''
