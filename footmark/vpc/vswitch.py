@@ -36,3 +36,15 @@ class VSwitch(TaggedVPCObject):
         if name.startswith('subnet_'):
             setattr(self, 'vswitch' + name[6:], value)
         super(TaggedVPCObject, self).__setattr__(name, value)
+
+    def update(self, name=None, description=None):
+        """
+        Update vswitch's attribute
+        """
+        return self.connection.modify_vswitch(self.id, vswitch_name=name, description=description)
+
+    def delete(self):
+        """
+        Terminate the vswitch
+        """
+        return self.connection.delete_vswitch(self.id)
