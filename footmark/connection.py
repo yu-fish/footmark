@@ -19,10 +19,8 @@ from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
 class ACSAuthConnection(object):
-    def __init__(self, acs_access_key_id=None,
-                 acs_secret_access_key=None,
-                 region=None,
-                 provider='acs', security_token=None):
+    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
+                 region=None, provider='acs', security_token=None, user_agent=None):
         """
         :keyword str acs_access_key_id: Your ACS Access Key ID (provided by
             Alicloud). If none is specified, the value in your
@@ -39,6 +37,7 @@ class ACSAuthConnection(object):
 
         """
         self.region = region
+        self.user_agent = user_agent
         if isinstance(provider, Provider):
             # Allow overriding Provider
             self.provider = provider
@@ -68,19 +67,23 @@ class ACSAuthConnection(object):
 class ACSQueryConnection(ACSAuthConnection):
     ResponseError = FootmarkServerError
 
-    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, product=None, security_token=None, provider='acs'):
+    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None, region=None,
+                 product=None, security_token=None, provider='acs',
+                 user_agent='Alicloud-Footmark-v'+footmark.__version__):
+
         super(ACSQueryConnection, self).__init__(
             acs_access_key_id,
             acs_secret_access_key,
             region=region,
             security_token=security_token,
-            provider=provider)
+            provider=provider,
+            user_agent=user_agent)
 
         self.product = product
+        self.user_agent = user_agent
 
     def make_request(self, action, params=None):
-        conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region)
+        conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region, user_agent=self.user_agent)
         if not conn:
             footmark.log.error('%s %s' % ('Null AcsClient ', conn))
             raise self.FootmarkClientError('Null AcsClient ', conn)
@@ -110,7 +113,8 @@ class ACSQueryConnection(ACSAuthConnection):
             result_set = markers[1](connection)
 
         for key, value in body.items():
-            self.parse_value(result_set, key, value)
+            self.parse_value(value)
+            setattr(result_set, self.convert_name(key), value)
 
         if markers[0] and markers[0] in body:
             for value in getattr(result_set, self.convert_name(markers[0])).itervalues():
@@ -132,31 +136,21 @@ class ACSQueryConnection(ACSAuthConnection):
             return results
         return result_set
 
-    def parse_object(self, obj, response, connection):
-        response = json.loads(response, encoding='UTF-8')
-        element = obj
-        if obj is not ResultSet:
-            element = obj(connection)
-        for key, value in response.items():
-            self.parse_value(element, key, value)
-
-        return element
-
-    def parse_value(self, element, key, value):
+    def parse_value(self, value):
         if isinstance(value, list):
             for item in value:
-                self.parse_value(element, key, item)
+                self.parse_value(item)
         if isinstance(value, dict):
             for k, v in value.items():
                 if isinstance(v, dict) or isinstance(v, list):
-                    self.parse_value(element, k, v)
+                    self.parse_value(v)
                 else:
                     value.pop(k)
                     value[self.convert_name(k)] = v
             for k, v in value.items():
                 value.pop(k)
                 value[self.convert_name(k)] = v
-        setattr(element, self.convert_name(key), value)
+        # setattr(element, self.convert_name(key), value)
         return
 
     def convert_name(self, name):

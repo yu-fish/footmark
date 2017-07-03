@@ -17,7 +17,7 @@ from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError, FootmarkServerError
 from functools import wraps
 from footmark.resultset import ResultSet
-# from aliyunsdkecs.request.v20140526.DescribeInstanceAttributeRequest import
+# from aliyunsdkecs.request.v20140526.DescribeSecurityGroupAttributeRequest import
 from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
@@ -28,7 +28,7 @@ class ECSConnection(ACSQueryConnection):
     ResponseError = ECSResponseError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, sdk_version=None, security_token=None, ):
+                 region=None, sdk_version=None, security_token=None, user_agent=None):
         """
         Init method to create a new connection to ECS.
         """
@@ -41,9 +41,10 @@ class ECSConnection(ACSQueryConnection):
 
         self.ECSSDK = 'aliyunsdkecs.request.v' + self.SDKVersion.replace('-', '')
 
-        super(ECSConnection, self).__init__(acs_access_key_id,
-                                            acs_secret_access_key,
-                                            self.region, self.ECSSDK, security_token)
+        super(ECSConnection, self).__init__(acs_access_key_id=acs_access_key_id,
+                                            acs_secret_access_key=acs_secret_access_key,
+                                            region=self.region, product=self.ECSSDK,
+                                            security_token=security_token, user_agent=user_agent)
 
     def build_filter_params(self, params, filters):
         if not isinstance(filters, dict):
@@ -53,7 +54,7 @@ class ECSConnection(ACSQueryConnection):
         for key, value in filters.items():
             acs_key = key
             if acs_key.startswith('tag:'):
-                while (('set_Tag%dKey' % flag) in params):
+                while ('set_Tag%dKey' % flag) in params:
                     flag += 1
                 if flag < 6:
                     params['set_Tag%dKey' % flag] = acs_key[4:]
@@ -282,41 +283,6 @@ class ECSConnection(ACSQueryConnection):
         if filters:
             self.build_filter_params(params, filters)
         return self.get_list('DescribeDisks', params, ['Disks', Disk])
-
-    def get_security_status(self, vpc_id=None, group_ids=None):
-        """
-        Querying Security Group List returns the basic information about all
-              user-defined security groups.
-
-        :type  vpc_id: String
-        :param vpc_id: ID of a vpc to which an security group belongs. If it is
-            null, a vpc is selected by the system
-
-        :type group_ids: List
-        :param group_ids: Provides a list of security groups ids.
-
-        :return: A list of the total number of security groups,
-                 the ID of the VPC to which the security group belongs
-
-                """
-
-        params = {}
-        results = []
-
-        if vpc_id:
-            self.build_list_params(params, vpc_id, 'VpcId')
-        if group_ids:
-            self.build_list_params(params, group_ids, 'SecurityGroupIds')
-
-        try:
-            results = self.get_status('DescribeSecurityGroups', params, ResultSet)
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error:": e})
-
-        return False, results
 
     def create_instance(self, image_id, instance_type, group_id=None, zone_id=None, instance_name=None,
                         description=None, internet_data=None, host_name=None, password=None, io_optimized=None,
@@ -782,48 +748,15 @@ class ECSConnection(ACSQueryConnection):
 
         return changed, results, success_instance_ids, failed_instance_ids
 
-    def get_all_security_groups(self, group_ids=None, vpc_id=None, filters=None):
-        """
-        Get all security groups associated with your account in a region.
-
-        :type group_ids: list
-        :param group_ids: A list of IDs of security groups to retrieve for
-                          security groups within a VPC.
-                          
-        :type vpc_id: string
-        :param vpc_id: ID of vpc which security groups belong.
-
-        :type filters: dict
-        :param filters: Optional filters that can be used to limit
-                        the results returned.  Filters are provided
-                        in the form of a dictionary consisting of
-                        filter names as the key and filter values
-                        as the value.  The set of allowable filter
-                        names/values is dependent on the request
-                        being performed.  Check the ECS API guide
-                        for details.
-
-        :rtype: list
-        :return: A list of SecurityGroup
-        """
-        params = {}
-        if group_ids:
-            self.build_list_params(params, group_ids, 'SecurityGroupIds')
-        if vpc_id:
-            self.build_list_params(params, vpc_id, 'VpcId')
-        if filters:
-            self.build_filter_params(params, filters)
-        return self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
-
-    def create_security_group(self, group_name=None, group_description=None, group_tags=None, vpc_id=None):
+    def create_security_group(self, group_name=None, description=None, group_tags=None, vpc_id=None):
         """
         create and authorize security group in ecs
 
         :type group_name: string
         :param group_name: Name of the security group
 
-        :type group_description: string
-        :param group_description: Description of the security group
+        :type description: string
+        :param description: Description of the security group
 
         :type group_tags: list
         :param group_tags: A list of hash/dictionaries of disk
@@ -852,7 +785,7 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, vpc_id, 'VpcId')
 
         # Security Group Description
-        self.build_list_params(params, group_description, 'Description')
+        self.build_list_params(params, description, 'Description')
 
         # Instance Tags
         tagno = 1
@@ -868,18 +801,11 @@ class ECSConnection(ACSQueryConnection):
                     tagno = tagno + 1
 
         # CreateSecurityGroup method call, returns newly created security group id
-        try:
-            response = self.get_object('CreateSecurityGroup', params, ResultSet)
-            security_group_id = response.security_group_id
-            results.append("Security Group Creation Successful")
-            changed = True
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error:": e})
+        response = self.get_object('CreateSecurityGroup', params, ResultSet)
+        if response:
+            return self.get_security_group_attribute(group_id=response.security_group_id)
 
-        return changed, security_group_id, results
+        return None
 
     def authorize_security_group(self, security_group_id=None, inbound_rules=None, outbound_rules=None):
         """
@@ -937,11 +863,6 @@ class ECSConnection(ACSQueryConnection):
             "outbound": outbound_failed_rules
         }
 
-        changed = False
-
-        tcp_udp_default_port_range = "1/65535"
-        other_default_port_range = "-1/-1"
-
         if inbound_rules:
             rule_types.append('inbound')
 
@@ -992,8 +913,7 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, rule['nic_type'], 'NicType')
 
                     try:
-                        changed = self.get_status(api_action.get(rule_type), params)
-                        if changed:
+                        if self.get_status(api_action.get(rule_type), params):
                             success_rule_count += 1
 
                     except Exception as ex:
@@ -1013,7 +933,7 @@ class ECSConnection(ACSQueryConnection):
                     result_details.append(
                         rule_type + ' rule authorization successful for group id ' + security_group_id)
 
-        return changed, inbound_failed_rules, outbound_failed_rules, result_details
+        return inbound_failed_rules, outbound_failed_rules, result_details
 
     def get_security_group_attribute(self, group_id=None, nic_type=None, direction='all'):
         """
@@ -1035,9 +955,6 @@ class ECSConnection(ACSQueryConnection):
                 """
 
         params = {}
-        results = []
-        group = None
-
         if group_id:
             self.build_list_params(params, group_id, 'SecurityGroupId')
         if nic_type:
@@ -1045,15 +962,47 @@ class ECSConnection(ACSQueryConnection):
         if direction:
             self.build_list_params(params, direction, 'Direction')
 
-        try:
-            group = self.get_object('DescribeSecurityGroupAttribute', params, SecurityGroup)
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error111:": e, "group:": group})
+        return self.get_object('DescribeSecurityGroupAttribute', params, SecurityGroup)
 
-        return False, group, results
+    def get_all_security_groups(self, group_ids=None, vpc_id=None, filters=None):
+        """
+        Get all security groups associated with your account in a region.
+    
+        :type group_ids: list
+        :param group_ids: A list of IDs of security groups to retrieve for
+                          security groups within a VPC.
+                          
+        :type vpc_id: string
+        :param vpc_id: ID of vpc which security groups belong.
+    
+        :type filters: dict
+        :param filters: Optional filters that can be used to limit
+                        the results returned.  Filters are provided
+                        in the form of a dictionary consisting of
+                        filter names as the key and filter values
+                        as the value.  The set of allowable filter
+                        names/values is dependent on the request
+                        being performed.  Check the ECS API guide
+                        for details.
+    
+        :rtype: list
+        :return: A list of SecurityGroup
+        """
+        params = {}
+        groups = []
+        if group_ids:
+            self.build_list_params(params, group_ids, 'SecurityGroupIds')
+        if vpc_id:
+            self.build_list_params(params, vpc_id, 'VpcId')
+        if filters:
+            self.build_filter_params(params, filters)
+        results = self.get_list('DescribeSecurityGroups', params, ['SecurityGroups', SecurityGroup])
+        if results:
+            for group in results:
+                groups.append(self.get_security_group_attribute(group_id=group.id))
+
+            return groups
+        return results
 
     def delete_security_group(self, group_ids):
         """
@@ -1068,25 +1017,13 @@ class ECSConnection(ACSQueryConnection):
         # Call DescribeSecurityGroups method to get response for all running instances
         params = {}
         results = []
-        changed = False
         for group_id in group_ids:
             if group_id:
                 self.build_list_params(params, group_id, 'SecurityGroupId')
-            try:
-                response = self.get_list('DescribeSecurityGroups', params, ["SecurityGroups", SecurityGroup])
-                if response and len(response) > 0:
-                    for item in response:
-                        if group_id == item.id:
-                            changed = self.get_status('DeleteSecurityGroup', params)
-                else:
-                    results.append({"Error Message": "The specified SecurityGroupIds %s does not exist in the record." % group_id})
-            except ServerException as e:
-                results.append({"Error Code": e.error_code, "Error Message": e.message,
-                                "RequestId": e.request_id, "Http Status": e.http_status})
-            except Exception as e:
-                results.append({"Error": e})
+                self.get_status('DeleteSecurityGroup', params)
+                results.append(group_id)
 
-        return changed, results
+        return results
 
     def create_disk(self, zone_id, disk_name=None, description=None,
                     disk_category=None, size=None, disk_tags=None,
