@@ -78,21 +78,28 @@ class ACSQueryConnection(ACSAuthConnection):
         self.product = product
 
     def make_request(self, action, params=None):
-        conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region)
-        if not conn:
-            footmark.log.error('%s %s' % ('Null AcsClient ', conn))
-            raise self.FootmarkClientError('Null AcsClient ', conn)
-        if action:
-            module = importlib.import_module(self.product + '.' + action + 'Request')
-            request = getattr(module, action + 'Request')()
-            request.set_accept_format('json')
-            if params and isinstance(params, dict):
-                for k, v in params.items():
-                    if hasattr(request, k):
-                        getattr(request, k)(v)
-                    else:
-                        request.add_query_param(k[4:], v)
-        return conn.get_response(request)
+        try:
+            conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region)
+            if not conn:
+                footmark.log.error('%s %s' % ('Null AcsClient ', conn))
+                raise self.FootmarkClientError('Null AcsClient ', conn)
+            if action:
+                module = importlib.import_module(self.product + '.' + action + 'Request')
+                request = getattr(module, action + 'Request')()
+                request.set_accept_format('json')
+                if params and isinstance(params, dict):
+                    for k, v in params.items():
+                        if hasattr(request, k):
+                            getattr(request, k)(v)
+                        else:
+                            request.add_query_param(k[4:], v)
+            return conn.do_action_with_exception(request)
+        except Exception as ex:
+            return ex
+
+    # This method facilitates unit test of oss methods
+    def make_oss_request(self, api_method):
+        return api_method()
 
     def build_list_params(self, params, items, label):
         params['set_%s' % label] = items
@@ -138,28 +145,21 @@ class ACSQueryConnection(ACSAuthConnection):
 
     def get_list(self, action, params, markers):
         response = self.make_request(action, params)
-        body = response[-1]
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            footmark.log.info('status= %s ; body= %s' % (response[0], body))
-            return self.parse_response(markers, body, self)
+        if type(response) is str:
+            return self.parse_response(markers, response, self)
         else:
-            footmark.log.error('%s %s' % (response[0], body))
-            raise self.ResponseError(response[0], body)
+            footmark.log.error('%s' % (response))
+            raise self.ResponseError(response)
+        
 
     def get_status(self, action, params):
         response = self.make_request(action, params)
-        body = response[-1]
-        footmark.log.debug(body)
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            footmark.log.info('status= %s ; body= %s' % (response[0], body))
-            #return 'success'
-            return json.loads(body)
+        footmark.log.debug(response)
+        if type(response) is str:
+            footmark.log.info('error= %s' % (response))
+            return json.loads(response)   
         else:
-            footmark.log.error('%s %s' % (response[0], body))
-            raise self.ResponseError(response[0], body)
+            footmark.log.error('%s' % (response))
+            raise self.ResponseError(response)  
+               
+
