@@ -1,7 +1,7 @@
 """
 Represents an ECS Elastic Block Storage Volume
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class Disk(TaggedECSObject):

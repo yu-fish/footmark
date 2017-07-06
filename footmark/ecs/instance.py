@@ -1,7 +1,7 @@
 """
 Represents an ECS Instance
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class Instance(TaggedECSObject):

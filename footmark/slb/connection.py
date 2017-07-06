@@ -3,16 +3,12 @@
 Represents a connection to the SLB service.
 """                    
 
-import warnings
-
-import six
 import time
 import json
  
 from footmark.connection import ACSQueryConnection
 from footmark.slb.regioninfo import RegionInfo
 from footmark.exception import SLBResponseError
-from footmark.resultset import ResultSet
 from footmark.slb.slb import LoadBalancer, BackendServer
 
 

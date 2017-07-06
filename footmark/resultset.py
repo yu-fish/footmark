@@ -2,10 +2,6 @@
 Exception classes - Subclassing allows you to check for specific errors
 """
 
-import json
-
-from footmark.ecs.ecsobject import *
-
 StandardError = Exception
 
 

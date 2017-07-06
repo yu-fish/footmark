@@ -1,7 +1,7 @@
 """
 Represents an VPC Security Group
 """
-from footmark.vpc.vpcobject import *
+from footmark.vpc.vpcobject import TaggedVPCObject
 
 
 class RouteTable(TaggedVPCObject):

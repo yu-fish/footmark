@@ -1,7 +1,7 @@
 """
 Represents an ECS Security Group
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class SecurityGroup(TaggedECSObject):

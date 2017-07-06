@@ -1,10 +1,6 @@
 # encoding: utf-8
 import warnings
-
-import six
 import time
-import json
-from functools import wraps
 
 from footmark.connection import ACSQueryConnection
 from footmark.vpc.regioninfo import RegionInfo
@@ -15,9 +11,6 @@ from footmark.vpc.vswitch import VSwitch
 from footmark.vpc.router import RouteEntry, RouteTable
 from footmark.vpc.config import *
 from aliyunsdkcore.acs_exception.exceptions import ServerException
-# from aliyunsdkcore.client import
-
-# from aliyunsdkecs.request.v20140526.ModifyVRouterAttributeRequest import
 
 
 class VPCConnection(ACSQueryConnection):
