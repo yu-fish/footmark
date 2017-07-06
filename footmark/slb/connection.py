@@ -12,6 +12,8 @@ import json
 from footmark.connection import ACSQueryConnection
 from footmark.slb.regioninfo import RegionInfo
 from footmark.exception import SLBResponseError
+from footmark.resultset import ResultSet
+from footmark.slb.slb import LoadBalancer, BackendServer
 
 
 class SLBConnection(ACSQueryConnection):
@@ -21,7 +23,7 @@ class SLBConnection(ACSQueryConnection):
     ResponseError = SLBResponseError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, sdk_version=None, security_token=None):
+                 region=None, sdk_version=None, security_token=None, user_agent=None):
         """
         Init method to create a new connection to SLB.
         """
@@ -36,7 +38,7 @@ class SLBConnection(ACSQueryConnection):
 
         super(SLBConnection, self).__init__(acs_access_key_id,
                                             acs_secret_access_key,
-                                            self.region, self.SLBSDK, security_token)
+                                            self.region, self.SLBSDK, security_token, user_agent=user_agent)
 
     def create_load_balancer(self, load_balancer_name=None, address_type=None, vswitch_id=None,
                              internet_charge_type=None, master_zone_id=None, slave_zone_id=None, bandwidth=None,
@@ -749,19 +751,7 @@ class SLBConnection(ACSQueryConnection):
         backend_servers_json = json.dumps(backend_servers_list)
         self.build_list_params(params, backend_servers_json, 'BackendServers')
 
-        try:
-            response = self.get_status('AddBackendServers', params)
-            changed = True
-            results.append("Added Backend Server(s) successfully.")
-            current_backend_servers = response['BackendServers']['BackendServer']
-
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            msg = str(ex.message)
-            results.append("Failed to add backend servers with error code " + error_code +
-                           " and message: " + msg)
-
-        return changed, current_backend_servers, results
+        return self.get_list('AddBackendServers', params, ["BackendServers", BackendServer])
     
     def purge_add_backend_server(self, load_balancer_id, instance_ids=None, purge_instance_ids=None):
         """
@@ -826,9 +816,6 @@ class SLBConnection(ACSQueryConnection):
         :return: return changed status, current_backend_servers and message with descriptive information
         """
         params = {}
-        results = []
-        current_backend_servers = []
-        changed = False
 
         self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
 
@@ -836,19 +823,7 @@ class SLBConnection(ACSQueryConnection):
 
         self.build_list_params(params, backend_servers_json, 'BackendServers')
 
-        try:
-            response = self.get_status('RemoveBackendServers', params)
-            changed = True
-            results.append("Removal of Backend Server(s) successful.")
-            current_backend_servers = response['BackendServers']['BackendServer']
-
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            msg = str(ex.message)
-            results.append("Failed to remove backend servers with error code " + error_code +
-                           " and message: " + msg)
-
-        return changed, current_backend_servers, results
+        return self.get_list('RemoveBackendServers', params, ["BackendServers", BackendServer])
 
     def set_backend_servers(self, load_balancer_id=None, backend_servers=None):
         """
@@ -876,19 +851,7 @@ class SLBConnection(ACSQueryConnection):
         backend_servers_json = json.dumps(backend_servers_list)
         self.build_list_params(params, backend_servers_json, 'BackendServers')
 
-        try:
-            response = self.get_status('SetBackendServers', params)
-            changed = True
-            results.append("Updated Backend Server(s) successfully.")
-            current_backend_servers = response['BackendServers']['BackendServer']
-
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            msg = str(ex.message)
-            results.append("Failed to update backend servers with error code " + error_code +
-                           " and message: " + msg)
-
-        return changed, current_backend_servers, results
+        return self.get_list('SetBackendServers', params, ["BackendServers", BackendServer])
 
     def describe_backend_servers_health_status(self, load_balancer_id=None, port=None):
         """
@@ -907,27 +870,7 @@ class SLBConnection(ACSQueryConnection):
         if port:
             self.build_list_params(params, port, 'ListenerPort')
 
-        try:
-            response = self.get_status('DescribeHealthStatus', params)
-
-            if len(response['BackendServers']['BackendServer']) > 0:
-                backend_servers_health_status.extend(response['BackendServers']['BackendServer'])
-            elif port:
-                results.append("No backend servers available for port " + str(port))
-            else:
-                results.append("No listener or backend servers available for slb id " + load_balancer_id)
-
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            msg = str(ex.message)
-            if port:
-                results.append("Failed to retrieve backend servers' health status for port " + str(port) +
-                               " with error code " + error_code + " and message '" + msg + "'")
-            else:
-                results.append("Failed to retrieve backend servers' health status for slb id " + load_balancer_id +
-                               " with error code " + error_code + " and message '" + msg + "'")
-
-        return backend_servers_health_status, results
+        return self.get_list('DescribeHealthStatus', params, ["BackendServers", BackendServer])
 
     def set_load_balancer_status(self, load_balancer_id, load_balancer_status):
         """
@@ -1061,12 +1004,7 @@ class SLBConnection(ACSQueryConnection):
 
         self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
 
-        try:
-            response = self.get_status('DescribeLoadBalancerAttribute', params)
-        except Exception as ex:
-            return None
-
-        return response
+        return self.get_object('DescribeLoadBalancerAttribute', params, LoadBalancer)
 
     def create_vserver_group(self, load_balancer_id, vserver_group_name, backend_servers):
         """
