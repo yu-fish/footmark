@@ -1,7 +1,7 @@
 """
 Represents an RDS Security Group
 """
-from footmark.rds.rdsobject import *
+from footmark.rds.rdsobject import TaggedRDSObject
 
 
 class SecurityGroup(TaggedRDSObject):

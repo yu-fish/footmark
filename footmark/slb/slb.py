@@ -1,7 +1,7 @@
 """
 Represents an SLB Security Group
 """
-from footmark.slb.slbobject import *
+from footmark.slb.slbobject import TaggedSLBObject
 
 
 class LoadBalancer(TaggedSLBObject):

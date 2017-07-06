@@ -11,7 +11,6 @@ import json
 
 from footmark.connection import ACSQueryConnection
 from footmark.rds.regioninfo import RegionInfo
-from footmark.rds.securitygroup import SecurityGroup
 from footmark.exception import RDSResponseError
 
 

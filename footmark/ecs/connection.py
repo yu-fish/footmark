@@ -14,7 +14,7 @@ from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
 from footmark.ecs.securitygroup import SecurityGroup
 from footmark.ecs.volume import Disk
-from footmark.exception import ECSResponseError, FootmarkServerError
+from footmark.exception import ECSResponseError
 from functools import wraps
 from footmark.resultset import ResultSet
 # from aliyunsdkecs.request.v20140526.DescribeSecurityGroupAttributeRequest import

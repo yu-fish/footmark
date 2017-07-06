@@ -1,14 +1,8 @@
 # encoding: utf-8
 """
 Represents a connection to the OSS service.
-"""                    
+"""
 
-import warnings
-import six
-import time
-import json
-
-from footmark.connection import ACSQueryConnection
 from footmark.oss.connection import OSSConnection
 import oss2
 

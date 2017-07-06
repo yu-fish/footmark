@@ -1,7 +1,7 @@
 """
 Represents an VRouter object
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class VRouterList(TaggedECSObject):
