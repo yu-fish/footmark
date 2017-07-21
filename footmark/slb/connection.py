@@ -60,7 +60,6 @@ class SLBConnection(ACSQueryConnection):
         """
 
         params = {}
-        result = {}
 
         if load_balancer_name:
             self.build_list_params(params, load_balancer_name, 'LoadBalancerName')
@@ -78,12 +77,8 @@ class SLBConnection(ACSQueryConnection):
             self.build_list_params(params, bandwidth, 'Bandwidth')
                                        
         res_obj = self.get_object('CreateLoadBalancer', params, LoadBalancer)
-
-        result = dict(load_balancer_id=res_obj.load_balancer_id,\
-                  address=res_obj.address,\
-                  network_type=res_obj.network_type)
     
-        return  result
+        return  res_obj
         
 
     def add_listeners(self, load_balancer_id, purge_listener=None, listeners=None):
