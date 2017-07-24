@@ -803,16 +803,13 @@ class SLBConnection(ACSQueryConnection):
         :return: return name of the operating interface, which is
             specified in the system
         """
-        results = []
         params = {}
        
         self.build_list_params(params, load_balancer_id, 'LoadBalancerId')        
         self.build_list_params(params, load_balancer_status, 'LoadBalancerStatus')
         
-        changed = self.get_status('SetLoadBalancerStatus', params)
-        results.append("set load balance status success")
-        return  results
-        
+        return self.get_status('SetLoadBalancerStatus', params)
+
     def set_load_balancer_name(self, load_balancer_id, load_balancer_name):
         """
         Set name or alias to the ServerLoadBalancer
@@ -829,10 +826,7 @@ class SLBConnection(ACSQueryConnection):
         params = {}
         self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
         self.build_list_params(params, load_balancer_name, 'LoadBalancerName')
-        changed = self.get_status('SetLoadBalancerName', params)
-        results.append("set load balancer name")
-        
-        return  results
+        return self.get_status('SetLoadBalancerName', params)
 
     def delete_load_balancer(self, slb_id):
         """
@@ -845,9 +839,7 @@ class SLBConnection(ACSQueryConnection):
         params = {}
 
         self.build_list_params(params, slb_id, 'LoadBalancerId')
-        changed =  self.get_status('DeleteLoadBalancer', params)   
-        results.append("delete success")
-        return  results
+        return self.get_status('DeleteLoadBalancer', params)   
         
     def modify_slb_internet_spec(self, load_balancer_id, internet_charge_type=None, bandwidth=None):
         """
@@ -870,9 +862,7 @@ class SLBConnection(ACSQueryConnection):
             self.build_list_params(params, internet_charge_type, 'InternetChargeType')
         if bandwidth:
             self.build_list_params(params, bandwidth, 'Bandwidth')
-        self.get_status('ModifyLoadBalancerInternetSpec', params)
-        results.append("modify load balancer spec success")
-        return  results
+        return self.get_status('ModifyLoadBalancerInternetSpec', params)
     
 
     def describe_load_balancer_attribute(self, load_balancer_id):
