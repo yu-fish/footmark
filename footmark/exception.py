@@ -121,7 +121,7 @@ class RDSResponseError(FootmarkServerError):
 
 class OSSResponseError(FootmarkServerError):
     """
-    Error in response from RDS.
+    Error in response from OSS.
     """
 
     def __init__(self, status, body=None):
