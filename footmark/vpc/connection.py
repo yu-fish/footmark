@@ -7,6 +7,7 @@ from footmark.vpc.regioninfo import RegionInfo
 from footmark.exception import VPCResponseError
 from footmark.resultset import ResultSet
 from footmark.vpc.vpc import Vpc
+from footmark.vpc.eip import Eip
 from footmark.vpc.vswitch import VSwitch
 from footmark.vpc.router import RouteEntry, RouteTable
 from footmark.vpc.config import *
@@ -551,7 +552,7 @@ class VPCConnection(ACSQueryConnection):
 
         return results
 
-    def requesting_eip_addresses(self, bandwidth, internet_charge_type):
+    def allocate_eip_addresses(self, bandwidth, internet_charge_type):
         """
         method to query eip addresses in the region
         :type bandwidth : str
@@ -561,23 +562,19 @@ class VPCConnection(ACSQueryConnection):
         :return: Return the allocationId , requestId and EIP address
         """
         params = {}
-        results = []
+        results = {}
         changed = False
-        try:
-            if bandwidth:
-                self.build_list_params(params, bandwidth, 'Bandwidth')
+        if bandwidth:
+            self.build_list_params(params, bandwidth, 'Bandwidth')
             
-            if internet_charge_type:
-                self.build_list_params(params, internet_charge_type, 'InternetChargeType')
+        if internet_charge_type:
+            self.build_list_params(params, internet_charge_type, 'InternetChargeType')
                   
-            results = self.get_status('AllocateEipAddress', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
+        results = self.get_object('AllocateEipAddress', params, ResultSet)
+        eips = self.describe_eip_address(eip_address = results.eip_address, allocation_id = results.allocation_id)
+        changed = True
+        
+        return changed, eips.eip_addresses["eip_address"][0]
 
     def bind_eip(self, allocation_id, instance_id):
         """
@@ -588,19 +585,13 @@ class VPCConnection(ACSQueryConnection):
         :return:Returns the status of operation
         """
         params = {}
-        results = []
+        result = False
         
         self.build_list_params(params, allocation_id, 'AllocationId')
         self.build_list_params(params, instance_id, 'InstanceId')
        
-        try:
-            results = self.get_status('AssociateEipAddress', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-       
-        return results
+        self.get_object('AssociateEipAddress', params, ResultSet)
+        return self.wait_for_eip_status(allocation_id=allocation_id, status="InUse")    
 
     def unbind_eip(self, allocation_id, instance_id):
         """
@@ -611,21 +602,16 @@ class VPCConnection(ACSQueryConnection):
         :return:Request Id
         """
         params = {}
-        results = []
-        changed = False
+        result = False
         if allocation_id:
             self.build_list_params(params, allocation_id, 'AllocationId')
         if instance_id:
             self.build_list_params(params, instance_id, 'InstanceId')
-        try:
-            results = self.get_status('UnassociateEipAddress', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        results = self.get_object('UnassociateEipAddress', params, ResultSet)
+        if results.request_id:
+            result = self.wait_for_eip_status(allocation_id=allocation_id, status="Available")  
 
-        return changed, results
+        return result
         
     def modifying_eip_attributes(self, allocation_id, bandwidth):
         """
@@ -643,14 +629,9 @@ class VPCConnection(ACSQueryConnection):
             self.build_list_params(params, allocation_id, 'AllocationId')
         if bandwidth:
             self.build_list_params(params, bandwidth, 'Bandwidth')
-        try:
-            results = self.get_status('ModifyEipAddressAttribute', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
+        results = self.get_status('ModifyEipAddressAttribute', params)
+        changed = True
+        
         return changed, results
 
     def get_all_vrouters(self, vrouter_id=None, pagenumber=None, pagesize=None):
@@ -696,21 +677,48 @@ class VPCConnection(ACSQueryConnection):
         params = {}
         results = []
         describe_eip = []
-        flag = False
+        result = False
 
-        try:
+        self.build_list_params(params, allocation_id, 'AllocationId')
+        results = self.get_object('ReleaseEipAddress', params, ResultSet)
+        if results.request_id:
+            result = True
+             
+        return result
+    
+    def wait_condition(self, delayTime, timeOut, condition):
+        tm = 0
+        assert(delayTime > 0)
+        assert(timeOut > delayTime)
+        while tm < timeOut:
+            if condition(tm):
+                return True
+            tm = tm + delayTime
+            time.sleep(delayTime)
+        return False        
+               
+    def wait_for_eip_status(self, eip_address = None, allocation_id=None, status = "", delayTime = 1, timeOut = 8):
+        """
+        wait for bind ok
+        :param eip_address:
+        :param allocation_id:
+        :param status:
+        :return: 
+        """
+        params = {}
+        result = False
+
+        if allocation_id:
             self.build_list_params(params, allocation_id, 'AllocationId')
-            results = self.get_status('ReleaseEipAddress', params)
+        if eip_address:
+            self.build_list_params(params, eip_address, 'EipAddress')
 
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return results
+        condition = lambda s :status == self.get_object('DescribeEipAddresses', params, ResultSet).eip_addresses['eip_address'][0]['status']
+        result = self.wait_condition(delayTime, timeOut, condition)
+        return result
 
     def describe_eip_address(self, eip_address=None, allocation_id=None, eip_status=None,
-                             page_number=1, page_size=50):
+                             page_number=1, page_size=10):
         """
         Get EIP details for a region
         :param eip_address:
@@ -719,7 +727,6 @@ class VPCConnection(ACSQueryConnection):
         :return:
         """
         params = {}
-        results = []
         eip_details=None
 
         if allocation_id:
@@ -731,16 +738,9 @@ class VPCConnection(ACSQueryConnection):
 
         self.build_list_params(params, page_number, 'PageNumber')
         self.build_list_params(params, page_size, 'PageSize')
+        
+        return self.get_list('DescribeEipAddresses', params, ['eip', Eip])
 
-        try:
-            response = self.get_status('DescribeEipAddresses', params)
-            eip_details = response['EipAddresses']['EipAddress']
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return eip_details, results
 
     def get_vswitch_status(self, vpc_id, zone_id=None, vswitch_id=None, pagenumber=None, pagesize=None):
         """
