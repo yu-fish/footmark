@@ -9,7 +9,7 @@ import json
 from footmark.connection import ACSQueryConnection
 from footmark.slb.regioninfo import RegionInfo
 from footmark.exception import SLBResponseError
-from footmark.slb.slb import LoadBalancer, BackendServer
+from footmark.slb.slb import LoadBalancer, BackendServer, VServerGroup
 
 
 class SLBConnection(ACSQueryConnection):
@@ -35,6 +35,171 @@ class SLBConnection(ACSQueryConnection):
         super(SLBConnection, self).__init__(acs_access_key_id,
                                             acs_secret_access_key,
                                             self.region, self.SLBSDK, security_token, user_agent=user_agent)
+    
+    def describe_vserver_group_attribute(self, vserver_group_id):
+        """
+        describe vserver group
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :return: return the vserver group object
+        """
+        params = {}
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+
+        return self.get_object('DescribeVServerGroupAttribute', params, VServerGroup)
+    
+    def describe_vserver_groups(self, load_balancer_id):
+        """
+        describe vserver group
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :return: return the vserver group object
+        """
+        params = {}
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        
+        return self.get_object('DescribeVServerGroups', params, ['VServerGroups' ,VServerGroup])
+    
+    def create_vserver_group(self, load_balancer_id, vserver_group_name, backend_servers):
+        """
+        create vserver group
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :type load_balancer_id: string
+        :param load_balancer_id: Unique identifier for load balancer
+        :type backend_servers: list
+        :param backend_servers:Backend server list
+        :return: return the vserver group object
+        """
+        params = {}
+        backend_serverlist = []
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, vserver_group_name, 'VServerGroupName')
+        for servers in backend_servers:
+            backend_serverlist.append({
+                'ServerId': servers['instance_id'],
+                'Port': servers['port'],
+                'Weight': servers['weight']
+            })
+        self.build_list_params(params, backend_serverlist, 'BackendServers')
+        
+        return self.get_object('CreateVServerGroup', params, VServerGroup)
+    
+    def set_vserver_group_attribute(self, vserver_group_id, vserver_group_name = '', backend_servers = []):
+        """
+        set vserver group attribute
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :type load_balancer_id: string
+        :param load_balancer_id: Unique identifier for load balancer
+        :type backend_servers: list
+        :param backend_servers:Backend server list
+        :return: return the vserver group object
+        """
+        params = {}
+        backend_serverlist = []
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        if vserver_group_name:
+            self.build_list_params(params, vserver_group_name, 'VServerGroupName')
+        if backend_servers:
+            for servers in backend_servers:
+                backend_serverlist.append({
+                    'ServerId': servers['instance_id'],
+                    'Port': servers['port'],
+                    'Weight': servers['weight']
+                })
+            self.build_list_params(params, backend_serverlist, 'BackendServers')
+        
+        return self.get_object('SetVServerGroupAttribute', params, VServerGroup)
+    
+    def add_vserver_group_backend_servers(self, vserver_group_id, backend_servers):
+        """
+        add vserver group backend servers
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :type backend_servers: list
+        :param backend_servers:Backend server list
+        :return: return the vserver group object
+        """
+        params = {}
+        backend_serverlist = []
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        self.build_list_params(params, backend_servers, 'BackendServers')
+        for servers in backend_servers:
+            backend_serverlist.append({
+                'ServerId': servers['instance_id'],
+                'Port': servers['port'],
+                'Weight': servers['weight']
+            })
+        self.build_list_params(params, backend_serverlist, 'BackendServers')
+        
+        return self.get_object('AddVServerGroupBackendServers', params, VServerGroup)
+    
+    def remove_vserver_group_backend_servers(self, vserver_group_id, backend_servers):
+        """
+        remove vserver group backend servers
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :type backend_servers: list
+        :param backend_servers:Backend server list
+        :return: return the vserver group object
+        """
+        params = {}
+        backend_serverlist = []
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        for servers in backend_servers:
+            backend_serverlist.append({
+                'ServerId': servers['instance_id'],
+                'Port': servers['port']
+            })
+        self.build_list_params(params, backend_serverlist, 'BackendServers')
+        
+        return self.get_object('RemoveVServerGroupBackendServers', params, VServerGroup)
+    
+    def modify_vserver_group_backend_servers(self, vserver_group_id, old_backend_servers = [], new_backend_servers = []):
+        """
+        modify vserver group backend servers
+        :type vserver_group_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :type old_backend_servers: list
+        :param old_backend_servers:Old backend server list
+        :type new_backend_servers: list
+        :param new_backend_servers:new backend server list
+        :return: return the vserver group object
+        """
+        params = {}
+        old_backend_serverlist = []
+        new_backend_serverlist = []
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        if old_backend_servers:
+            for servers in old_backend_servers:
+                old_backend_serverlist.append({
+                    'ServerId': servers['instance_id'],
+                    'Port': servers['port']
+            })
+            self.build_list_params(params, old_backend_serverlist, 'OldBackendServers')
+        if new_backend_servers:
+            for servers in new_backend_servers:
+                new_backend_serverlist.append({
+                    'ServerId': servers['instance_id'],
+                    'Port': servers['port'],
+                    'Weight': servers['weight']
+            })
+            self.build_list_params(params, new_backend_serverlist, 'NewBackendServers')
+        
+        return self.get_object('ModifyVServerGroupBackendServers', params, VServerGroup)
+    
+    def delete_vserver_group(self, vserver_group_id):
+        """
+        delete vserver group
+        :type load_balancer_id: string
+        :param vserver_group_id: Unique identifier for the virtual server group
+        :return: return bool
+        """
+        params = {}
+        self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        
+        return self.get_status('DeleteVServerGroup', params)    
 
     def create_load_balancer(self, load_balancer_name=None, address_type=None, vswitch_id=None,
                              internet_charge_type=None, master_zone_id=None, slave_zone_id=None, bandwidth=None):
@@ -896,105 +1061,6 @@ class SLBConnection(ACSQueryConnection):
             self.build_list_params(params, load_balancer_name, 'LoadBalancerName')
         return self.get_list('DescribeLoadBalancers', params,  ['LoadBalancers', LoadBalancer])
 
-        
-    def create_vserver_group(self, load_balancer_id, vserver_group_name, backend_servers):
-        """
-        Create a VServer Group
-        :type load_balancer_id: string
-        :param load_balancer_id: Virtual server LoadBalancer Id
-        :type vserver_group_name: string
-        :param vserver_group_name: Virtual server group name, where you can rename it
-        :param backend_servers:
-          - List of hash/dictionary of backend servers to add in
-          - '[{"key":"value", "key":"value"}]', keys allowed:
-            - server_id (required:true, description: Unique id of Instance to add)
-            - port (required:true, description: The back-end server using the port, range: 1-65535)
-            - weight (required:true; default: 100, description: Weight of the backend server, in the range of 1-100 )
-
-        :return: it return public parameters with ,VServerGroupId The unique identifier for the virtual server.
-                 and BackendServers Array format, list of back-end servers in the virtual server group.
-                 and VServerGroupName	String	Virtual server group name
-                 The structure of the elements in the list is detailed in BackendServer
-        """
-        params = {}
-        results = []
-        backend_serverlist = []       
-        changed = False
-        if load_balancer_id:
-            self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
-        if vserver_group_name:
-            self.build_list_params(params, vserver_group_name, 'VServerGroupName')
-        if backend_servers:
-            for servers in backend_servers:
-                backend_serverlist.append({
-                        'ServerId': servers['server_id'],
-                        'Port': servers['port'],
-                        'Weight': servers['weight']
-                    })
-                                    
-        self.build_list_params(params, json.dumps(backend_serverlist), 'BackendServers')
-                
-        try:     
-            results = self.get_status('CreateVServerGroup', params)           
-            changed = True
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            error_msg = str(ex.message)
-            results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
-
-        return changed, results
-
-    def set_vservergroup_attribute(self, vserver_group_id, vserver_group_name=None, backend_servers=None):
-        """
-        Set a virtual server group, change the name for an existing virtual server group, or change the  weight of
-            an existing back-end server.
-        :type vserver_group_id: string
-        :param vserver_group_id: The virtual server group ID
-        :type vserver_group_name: string
-        :param vserver_group_name: Virtual server group name, where you can rename it
-        :param backend_servers:  - List of hash/dictionary of backend servers to add in
-          - '[{"key":"value", "key":"value"}]', keys allowed:
-            - server_id (required:true, description: Unique id of Instance to add)
-            - port (required:true, description: The back-end server using the port, range: 1-65535)
-            - weight (required:true; default: 100, description: Weight of the backend server, in the range of 1-100 )
-        :return: VServerGroupId	String	The unique identifier for the virtual server group
-                 VServerGroupName	String	Virtual server group name
-                 BackendServers	List	Array format, returns the operation is successful,
-                 the virtual server group all the back-end server list,
-                 the list of elements in the structure see BackendServer
-        """
-        params = {}
-        results = []
-        backend_serverlist = []
-        changed = False      
-        if vserver_group_id:
-            self.build_list_params(params, vserver_group_id, 'VServerGroupId')
-        if vserver_group_name:
-            self.build_list_params(params, vserver_group_name, 'VServerGroupName')
-        if backend_servers:
-            for servers in backend_servers:
-                backend_serverlist.append({
-                    'ServerId': servers['server_id'],
-                    'Port': servers['port'],
-                    'Weight': servers['weight']
-                })
-        
-            self.build_list_params(params, json.dumps(backend_serverlist), 'BackendServers')
-        try:
-            results = self.get_status('SetVServerGroupAttribute', params)
-            if results:
-                for result in results["BackendServers"]["BackendServer"]:
-                    for backend_server in backend_servers:
-                        if result["ServerId"] == backend_server["server_id"] and \
-                                        result["Port"] == backend_server["port"]:
-                            changed = True                        
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            error_msg = str(ex.message)
-            results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
-
-        return changed, results
-
     def add_vservergroup_backend_server(self, vserver_group_id, backend_servers):
         """
         Add a back-end server in a virtual server group, add a set of back-end servers to a specific virtual server
@@ -1172,32 +1238,6 @@ class SLBConnection(ACSQueryConnection):
 
         return changed, results
 
-    def describe_vservergroup_attributes(self, vserver_group_id):
-        """
-        describe vserver group attributes 
-        and return a list of back-end servers in that virtual server group.
-        :type vserver_group_id: string
-        :param vserver_group_id: The unique identifier for the virtual server group       
-        :return: VServerGroupId	String	The unique identifier for the virtual server group
-                 BackendServers	List	Array format, returns the operation is successful,
-                 the virtual server group all the back-end server list, the list of elements in the structure
-                 see BackendServer
-        """
-        params = {}
-        changed = False
-        results = []      
-        if vserver_group_id:
-            self.build_list_params(params, vserver_group_id, 'VServerGroupId')  
-        try:
-            results = self.get_status('DescribeVServerGroupAttribute', params)           
-            changed = True
-        except Exception as ex:
-            error_code = str(ex.error_code)
-            error_msg = str(ex.message)
-            results.append("Error Code:" + error_code + " ,Error Message:" + error_msg)
-
-        return changed, results
-
     def describe_vservergroup_backendserver(self, vserver_group_id, backend_servers):
         """
         describe vserver group backend server      
@@ -1287,41 +1327,6 @@ class SLBConnection(ACSQueryConnection):
 
         return changed_flag, results
 
-    def delete_vserver_group(self, load_balancer_id, vserver_group_id):
-        """
-        Delete specified by VServerGroupId virtual server group.
-        :type vserver_group_id: string
-        :param vserver_group_id:The unique identifier for the virtual server group
-        :type load_balancer_id: string
-        :param load_balancer_id: Uniquely identifies for the load balancer
-        :return: This method returns success message string and boolean value, if virtual
-         server group deleted successfully
-        """
-        params = {}
-        results = []
-        flag = False
-        changed = False
-        try:
-            self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
-            vserver_groups = self.get_status('DescribeVServerGroups', params)
-            for vserver_group in vserver_groups[u'VServerGroups'][u'VServerGroup']:
-                if str(vserver_group[u'VServerGroupId']) == vserver_group_id:
-                    flag = True
-                    break
-            if flag is True:
-                params = {}
-                self.build_list_params(params, vserver_group_id, 'VServerGroupId')
-                response = self.get_status('DeleteVServerGroup', params)
-                changed = True
-                results.append({"Success Message": "VServer Group Deleted Successfully"})
-            else:
-                results.append({"Error Message": "Server Group Not Exist"})
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
     # endregion
 
 
