@@ -1,15 +1,14 @@
 # encoding: utf-8
 """
 Represents a connection to the SLB service.
-"""                    
+"""
 
 import time
 import json
- 
 from footmark.connection import ACSQueryConnection
 from footmark.slb.regioninfo import RegionInfo
 from footmark.exception import SLBResponseError
-from footmark.slb.slb import LoadBalancer, BackendServer
+from footmark.slb.slb import LoadBalancer, BackendServer, LoadBalancerListener
 
 
 class SLBConnection(ACSQueryConnection):
@@ -75,11 +74,10 @@ class SLBConnection(ACSQueryConnection):
             self.build_list_params(params, slave_zone_id, 'SlaveZoneId')
         if bandwidth:
             self.build_list_params(params, bandwidth, 'Bandwidth')
-                                       
         res_obj = self.get_object('CreateLoadBalancer', params, LoadBalancer)
-    
+
         return  res_obj
-        
+
 
     def add_listeners(self, load_balancer_id, purge_listener=None, listeners=None):
         """
@@ -163,487 +161,441 @@ class SLBConnection(ACSQueryConnection):
             error_msg = ex.message
             results.append({"Error Code": error_code, "Error Message": error_msg})
 
-        return changed, results     
+        return changed, results
 
-    def create_load_balancer_http_listener(self, slb_id, listener):
+    def create_load_balancer_listener(self, load_balancer_id,\
+                                            listener_type,\
+                                            listener_port,\
+                                            backend_server_port,\
+                                            bandwidth=None,\
+                                            sticky_session='',\
+                                            health_check='',\
+                                            scheduler='',\
+                                            sticky_session_type='',\
+                                            cookie_timeout=None,\
+                                            cookie='',\
+                                            health_check_domain='',\
+                                            health_check_uri='',\
+                                            health_check_connect_port=None,\
+                                            healthy_threshold=None,\
+                                            unhealthy_threshold=None,\
+                                            health_check_timeout=None,\
+                                            health_check_interval=None,\
+                                            health_check_http_code='',\
+                                            vserver_group_id='',\
+                                            gzip='',\
+                                            server_certificate_id='',\
+                                            master_slave_server_group_id='',\
+                                            persistence_timeout=None,\
+                                            health_check_connect_timeout=None,\
+                                            xforwarded_for = 'on',\
+                                            ca_certificate_id=''):
         """
         Create HTTP Listener; create Listeners based on the HTTP protocol for the Server Load Balancer instance,
         including policies and health check configurations based on the HTTP protocol
-        :type slb_id: dict
-        :param slb_id:  ID of Server Load Balancer
-        :type listener: dict
-        :param listener:
-         - listener_port/load_balancer_port: Server Load Balancer instance’s frontend port. Value: 1-65535
-         - backend_server_port/instance_port: Server Load Balancer instance’s backend port. Value: 1-65535
-         - bandwidth: Listener’s peak bandwidth. Value: -1 / 1-1000 Mbps
-         - scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
-         - gzip: Whether to open the Gzip compression
-         - health_check:
-            - domain: Health check domain name
-            - uri/ping_path: Health check URI.When HealthCheck is On, this parameter is required.
-               When HealthCheck is Off, this parameter is ignored.
-            - connect_port/ping_port: Port used for health checks
-            - healthy_threshold: Threshold value for determining health check results as Success
-            - unhealthy_threshold: Threshold value for determining health check results as Fail
-            - timeout/response_timeout: Maximum timeout time for each health check response
-            - interval: Interval between health checks
-            - http_code: Normal health check HTTP status codes. Separate multiple status codes with ','
-         - stickiness:
-            - enabled: Whether to enable session persistence
-            - type/session_type: Mode for handling the cookie. Value：insert / server
-            - cookie: The cookie configured on the server
-            - expiration/cookie_timeout: Cookie timeout
-        :return: returns RequestId of request
+        :type load_balancer_id: string
+        :param load_balancer_id: load balance id
+        :type listener_port: int
+        :param listener_port: Server Load Balancer instance frontend port. Value: 1-65535
+        :type backend_server_port: int
+        :param backend_server_port: Server Load Balancer instance backend port. Value: 1-65535
+        :type bandwidth: int
+        :param bandwidth: Listener bandwidth. Value: -1 / 1-1000 Mbps
+        :type sticky_session: string
+        :param sticky_session: Whether to open the Gzip compression
+        :type listener_type: string
+        :param listener_type: type of listener to create
+        :type health_check: string
+        :param health_check: Whether to enable health check
+        :type health_check: string
+        :param health_check: Whether to enable health check
+        :type: scheduler: string
+        :param: scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
+        :type: sticky_session_type: string
+        :param: sticky_session_type: Mode for handling the cookie.
+        :type: cookie_timeout: int
+        :param: cookie_timeout: Cookie timeout.
+        :type: cookie: string
+        :param: cookie: The cookie configured on the server
+        :type: health_check_domain: string
+        :param: health_check_domain: Domain name used for health check.
+        :type: health_check_uri: string
+        :param: health_check_uri: URI used for health check
+        :type: health_check_connect_port: int
+        :param: health_check_connect_port: Port used for health check.
+        :type: healthy_threshold: int
+        :param: healthy_threshold: Threshold determining the result of the health check is success.
+        :type: unhealthy_threshold: int
+        :param: unhealthy_threshold: Threshold determining the result of the health check is fail. 
+        :type: health_check_timeout: int
+        :param: health_check_timeout: Maximum timeout of each health check response. 
+        :type: health_check_http_code: string
+        :param: health_check_http_code: Regular health check HTTP status code. Multiple codes are segmented by ",".
+        :type: health_check_interval: int
+        :param: health_check_interval: Time interval of health checks.
+        :type: vserver_group_id: string
+        :param: vserver_group_id: Virtual server group ID.
+        :type: gzip: string
+        :param: gzip: whether open Gzip compression
+        :type: server_certificate_id: string
+        :param: server_certificate_id: Server certificate ID.
+        :type: master_slave_server_group_id: string
+        :param: master_slave_server_group_id: Master standby server group ID
+        :type: persistence_timeout: string
+        :param: persistence_timeout: Timeout time for connection persistence.
+        :type: health_check_connect_timeout: int
+        :param: health_check_connect_timeout: Health check connection timeout.
+        :type: xforwarded_for: int
+        :param: xforwarded_for: Whether open access to the actual IP of visitors through X-Forwarded-For
+        :type: ca_certificate_id: string
+        :param: ca_certificate_id: CA certificate ID
+        :return: returns request status
         """
 
         params = {}
         results = []
         changed = False
-        listener_port = None
+        listener_type_dic = dict(http="CreateLoadBalancerHTTPListener",\
+                                 https= "CreateLoadBalancerHTTPSListener",\
+                                 tcp="CreateLoadBalancerTCPListener",\
+                                 udp="CreateLoadBalancerUDPListener")
+        key = listener_type_dic.get(listener_type, '')
 
-        if listener:              
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
+        self.build_list_params(params, backend_server_port, 'BackendServerPort')
+        if bandwidth:
+            self.build_list_params(params, bandwidth, 'Bandwidth')
+        if sticky_session:
+            self.build_list_params(params, sticky_session, 'StickySession')
+        if health_check:
+            self.build_list_params(params, health_check, 'HealthCheck')
+        if scheduler:
+            self.build_list_params(params, scheduler, 'Scheduler')
+        if gzip:
+            self.build_list_params(params, gzip, 'Gzip')
+        if server_certificate_id:
+            self.build_list_params(params, server_certificate_id, 'ServerCertificateId')
+        if xforwarded_for:
+            self.build_list_params(params, 'on', 'XForwardedFor')
+        if sticky_session_type:
+            self.build_list_params(params, sticky_session_type, 'StickySessionType')
+        if cookie_timeout:
+            self.build_list_params(params, cookie_timeout, 'CookieTimeout')
+        if cookie:
+            self.build_list_params(params, cookie, 'Cookie')
+        if health_check_domain:
+            self.build_list_params(params, health_check_domain, 'HealthCheckDomain')
+        if health_check_uri:
+            self.build_list_params(params, health_check_uri, 'HealthCheckURI')
+        if health_check_connect_port:
+            self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
+        if healthy_threshold:
+            self.build_list_params(params, healthy_threshold, 'HealthyThreshold')
+        if unhealthy_threshold:
+            self.build_list_params(params, unhealthy_threshold, 'UnhealthyThreshold')
+        if health_check_timeout:
+            self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
+        if health_check_interval:
+            self.build_list_params(params, health_check_interval, 'HealthCheckInterval')
+        if health_check_http_code:
+            self.build_list_params(params, health_check_http_code, 'HealthCheckHttpCode')
+        if vserver_group_id:
+            self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        if master_slave_server_group_id:
+            self.build_list_params(params, master_slave_server_group_id, 'MasterSlaveServerGroupId')
+        if persistence_timeout:
+            self.build_list_params(params, persistence_timeout, 'PersistenceTimeout')
+        if health_check_connect_timeout:
+            self.build_list_params(params, health_check_connect_timeout, 'HealthCheckConnectTimeout')
+        if ca_certificate_id:
+            self.build_list_params(params, ca_certificate_id, 'CACertificateId')
 
-            if 'load_balancer_port' in listener:
-                listener_port = listener['load_balancer_port']
-            if 'listener_port' in listener:
-                listener_port = listener['listener_port']
-            if listener_port:
-                self.build_list_params(params, listener_port, 'ListenerPort')                                                 
+        return  self.get_status(key, params)
 
-            backend_server_port = None
-            if 'instance_port' in listener:
-                backend_server_port = listener['instance_port']
-            if 'backend_server_port' in listener:
-                backend_server_port = listener['backend_server_port']
-            if backend_server_port:
-                self.build_list_params(params, backend_server_port, 'BackendServerPort')
-
-            if 'bandwidth' in listener:
-                self.build_list_params(params, listener['bandwidth'], 'Bandwidth')
-            if 'scheduler' in listener:
-                self.build_list_params(params, listener['scheduler'], 'Scheduler')
-            if 'gzip' in listener:
-                self.build_list_params(params, listener['gzip'], 'Gzip')
-
-            if 'health_check' in listener:
-                health_check = listener['health_check']                  
-                self.build_list_params(params, "on", 'HealthCheck')
-                if 'domain' in health_check:
-                    self.build_list_params(params, health_check['domain'], 'HealthCheckDomain')
-
-                health_check_uri = None
-                if 'ping_path' in health_check:
-                    health_check_uri = health_check['ping_path']
-                if 'uri' in health_check:
-                    health_check_uri = health_check['uri']
-                if health_check_uri:
-                    self.build_list_params(params, health_check_uri, 'HealthCheckURI')
-
-                health_check_connect_port = None
-                if 'ping_port' in health_check:
-                    health_check_connect_port = health_check['ping_port']
-                if 'connect_port' in health_check:
-                    health_check_connect_port = health_check['connect_port']
-                if health_check_connect_port:
-                    self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
-
-                if 'healthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['healthy_threshold'], 'HealthyThreshold')
-                if 'unhealthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['unhealthy_threshold'], 'UnhealthyThreshold')
-
-                health_check_timeout = None
-                if 'response_timeout' in health_check:
-                    health_check_timeout = health_check['response_timeout']
-                if 'timeout' in health_check:
-                    health_check_timeout = health_check['timeout']
-                if health_check_timeout:
-                    self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
-
-                if 'interval' in health_check:
-                    self.build_list_params(params, health_check['interval'], 'HealthCheckInterval')
-                if 'http_code' in health_check:
-                    self.build_list_params(params, health_check['http_code'], 'HealthCheckHttpCode')   
-
-            if 'stickiness' in listener:
-                stickiness = listener['stickiness']
-                if 'enabled' in stickiness:
-                    self.build_list_params(params, stickiness['enabled'], 'StickySession')
-
-                sticky_session_type = None
-                if 'session_type' in stickiness:
-                    sticky_session_type = stickiness['session_type']
-                if 'type' in stickiness:
-                    sticky_session_type = stickiness['type']
-                if sticky_session_type:
-                    self.build_list_params(params, sticky_session_type, 'StickySessionType')
-
-                if 'cookie' in stickiness:
-                    self.build_list_params(params, stickiness['cookie'], 'Cookie')
-                    
-                cookie_timeout = None
-                if 'cookie_timeout' in stickiness:
-                    cookie_timeout = stickiness['cookie_timeout']
-                if 'expiration' in stickiness:
-                    cookie_timeout = stickiness['expiration']
-                if cookie_timeout:
-                    self.build_list_params(params, cookie_timeout, 'CookieTimeout')
-
-        try:
-            results = self.get_status('CreateLoadBalancerHTTPListener', params)
-            changed = True
-            # Start http Listener
-            params = {}
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
-            self.build_list_params(params, listener_port, 'ListenerPort')
-            self.get_status('StartLoadBalancerListener', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
-
-    def create_load_balancer_https_listener(self, slb_id, listener):
+    def set_listener_access_control_status(self, load_balancer_id, listener_port, access_control_status):
         """
-        Configures an HTTPS Listener, including Scheduler, SticySession, HealthCheck, ServerCertificateId, etc
-        :type slb_id: dict
-        :param slb_id:  ID of Server Load Balancer
-        :type listener: dict
-        :param listener:
-         - listener_port/load_balancer_port: Server Load Balancer instance’s frontend port. Value: 1-65535
-         - backend_server_port/instance_port: Server Load Balancer instance’s backend port. Value: 1-65535
-         - bandwidth: Listener’s peak bandwidth. Value: -1 / 1-1000 Mbps
-         - scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
-         - ssl_certificate_id: Security certificate ID
-         - gzip: Whether to open the Gzip compression
-         - health_check:
-            - domain: Health check domain name
-            - uri/ping_path: Health check URI.When HealthCheck is On, this parameter is required.
-               When HealthCheck is Off, this parameter is ignored.
-            - connect_port/ping_port: Port used for health checks
-            - healthy_threshold: Threshold value for determining health check results as Success
-            - unhealthy_threshold: Threshold value for determining health check results as Fail
-            - timeout/response_timeout: Maximum timeout time for each health check response
-            - interval: Interval between health checks
-            - http_code: Normal health check HTTP status codes. Separate multiple status codes with ','
-         - stickiness:
-            - enabled: Whether to enable session persistence
-            - type/session_type: Mode for handling the cookie. Value：insert / server
-            - cookie: The cookie configured on the server
-            - expiration/cookie_timeout: Cookie timeout
-        :return: returns RequestId of request
+        set listener access control status
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: int
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :type access_control_status: string
+        :param load_balancer_id: Whether or not access control is enabled. open_white_list indicates the white list access control function is enabled.
+        :return: returns bool
         """
-
         params = {}
-        results = []
-        changed = False
-        listener_port = None
 
-        if listener:              
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
+        self.build_list_params(params, access_control_status, 'AccessControlStatus')
+        return self.get_status('SetListenerAccessControlStatus', params)
 
-            if 'load_balancer_port' in listener:
-                listener_port = listener['load_balancer_port']
-            if 'listener_port' in listener:
-                listener_port = listener['listener_port']
-            if listener_port:
-                self.build_list_params(params, listener_port, 'ListenerPort')
-
-            backend_server_port = None
-            if 'instance_port' in listener:
-                backend_server_port = listener['instance_port']
-            if 'backend_server_port' in listener:
-                backend_server_port = listener['backend_server_port']
-            if backend_server_port:
-                self.build_list_params(params, backend_server_port, 'BackendServerPort')
-
-            if 'bandwidth' in listener:
-                self.build_list_params(params, listener['bandwidth'], 'Bandwidth')
-            if 'scheduler' in listener:
-                self.build_list_params(params, listener['scheduler'], 'Scheduler')
-            if 'ssl_certificate_id' in listener:
-                self.build_list_params(params, listener['ssl_certificate_id'], 'ServerCertificateId')
-            if 'gzip' in listener:
-                self.build_list_params(params, listener['gzip'], 'Gzip')
-
-            if 'health_check' in listener:
-                health_check = listener['health_check']                  
-                self.build_list_params(params, "on", 'HealthCheck')
-                if 'domain' in health_check:
-                    self.build_list_params(params, health_check['domain'], 'HealthCheckDomain')
-
-                health_check_uri = None
-                if 'ping_path' in health_check:
-                    health_check_uri = health_check['ping_path']
-                if 'uri' in health_check:
-                    health_check_uri = health_check['uri']
-                if health_check_uri:
-                    self.build_list_params(params, health_check_uri, 'HealthCheckURI')
-
-                health_check_connect_port = None
-                if 'ping_port' in health_check:
-                    health_check_connect_port = health_check['ping_port']
-                if 'connect_port' in health_check:
-                    health_check_connect_port = health_check['connect_port']
-                if health_check_connect_port:
-                    self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
-
-                if 'healthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['healthy_threshold'], 'HealthyThreshold')
-                if 'unhealthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['unhealthy_threshold'], 'UnhealthyThreshold')
-
-                health_check_timeout = None
-                if 'response_timeout' in health_check:
-                    health_check_timeout = health_check['response_timeout']
-                if 'timeout' in health_check:
-                    health_check_timeout = health_check['timeout']
-                if health_check_timeout:
-                    self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
-
-                if 'interval' in health_check:
-                    self.build_list_params(params, health_check['interval'], 'HealthCheckInterval')
-                if 'http_code' in health_check:
-                    self.build_list_params(params, health_check['http_code'], 'HealthCheckHttpCode')   
-
-            if 'stickiness' in listener:
-                stickiness = listener['stickiness']
-                if 'enabled' in stickiness:
-                    self.build_list_params(params, stickiness['enabled'], 'StickySession')
-
-                sticky_session_type = None
-                if 'session_type' in stickiness:
-                    sticky_session_type = stickiness['session_type']
-                if 'type' in stickiness:
-                    sticky_session_type = stickiness['type']
-                if sticky_session_type:
-                    self.build_list_params(params, sticky_session_type, 'StickySessionType')
-
-                if 'cookie' in stickiness:
-                    self.build_list_params(params, stickiness['cookie'], 'Cookie')
-
-                cookie_timeout = None
-                if 'cookie_timeout' in stickiness:
-                    cookie_timeout = stickiness['cookie_timeout']
-                if 'expiration' in stickiness:
-                    cookie_timeout = stickiness['expiration']
-                if cookie_timeout:
-                    self.build_list_params(params, cookie_timeout, 'CookieTimeout')
-
-        try:
-            results = self.get_status('CreateLoadBalancerHTTPSListener', params)
-            changed = True
-            # Start https Listener
-            params = {}
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
-            self.build_list_params(params, listener_port, 'ListenerPort')
-            self.get_status('StartLoadBalancerListener', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
-
-    def create_load_balancer_tcp_listener(self, slb_id, listener):
+    def set_listener_attribute(self, load_balancer_id,\
+                                    listener_port,\
+                                    bandwidth,\
+                                    listener_type,\
+                                    sticky_session='',\
+                                    health_check='',\
+                                    scheduler='',\
+                                    sticky_session_type='',\
+                                    cookie_timeout=None,\
+                                    cookie='',\
+                                    health_check_domain='',\
+                                    health_check_uri='',\
+                                    health_check_connect_port=None,\
+                                    healthy_threshold=None,\
+                                    unhealthy_threshold=None,\
+                                    health_check_timeout=None,\
+                                    health_check_interval=None,\
+                                    health_check_http_code='',\
+                                    vserver_group_id='',\
+                                    gzip='',\
+                                    server_certificate_id='',\
+                                    master_slave_server_group_id='',\
+                                    persistence_timeout=None,\
+                                    health_check_connect_timeout=None,\
+                                    ca_certificate_id='',\
+                                    syn_proxy='',\
+                                    health_check_type='',\
+                                    vserver_group='',\
+                                    master_slave_server_group='',
+                                    xforwarded_for='on'):
         """
-        Configures an TCP Listener, including Scheduler, HealthCheck etc
-        :type slb_id: dict
-        :param slb_id:  ID of Server Load Balancer
-        :type listener: dict
-        :param listener:
-         - listener_port/load_balancer_port: Server Load Balancer instance’s frontend port. Value: 1-65535
-         - backend_server_port/instance_port: Server Load Balancer instance’s backend port. Value: 1-65535
-         - bandwidth: Listener’s peak bandwidth. Value: -1 / 1-1000 Mbps
-         - scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
-         - health_check:
-            - domain: Health check domain name
-            - uri/ping_path: Health check URI.When HealthCheck is On, this parameter is required.
-               When HealthCheck is Off, this parameter is ignored.
-            - connect_port/ping_port: Port used for health checks
-            - healthy_threshold: Threshold value for determining health check results as Success
-            - unhealthy_threshold: Threshold value for determining health check results as Fail
-            - timeout/response_timeout: Maximum timeout time for each health check response
-            - interval: Interval between health checks
-            - http_code: Normal health check HTTP status codes. Separate multiple status codes with ','
-        :return: returns RequestId of request
+        set listener attribute
+        :type load_balancer_id: string
+        :param load_balancer_id: load balance id
+        :type listener_port: int
+        :param listener_port: Server Load Balancer instance frontend port. Value: 1-65535
+        :type bandwidth: int
+        :param bandwidth: Listener bandwidth. Value: -1 / 1-1000 Mbps
+        :type sticky_session: string
+        :param sticky_session: Whether to open the Gzip compression
+        :type listener_type: string
+        :param listener_type: type of listener to create
+        :type health_check: string
+        :param health_check: Whether to enable health check
+        :type: scheduler: string
+        :param: scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
+        :type: sticky_session_type: string
+        :param: sticky_session_type: Mode for handling the cookie.
+        :type: cookie_timeout: int
+        :param: cookie_timeout: Cookie timeout.
+        :type: cookie: string
+        :param: cookie: The cookie configured on the server
+        :type: health_check_domain: string
+        :param: health_check_domain: Domain name used for health check.
+        :type: health_check_uri: string
+        :param: health_check_uri: URI used for health check
+        :type: health_check_connect_port: int
+        :param: health_check_connect_port: Port used for health check.
+        :type: healthy_threshold: int
+        :param: healthy_threshold: Threshold determining the result of the health check is success.
+        :type: unhealthy_threshold: int
+        :param: unhealthy_threshold: Threshold determining the result of the health check is fail.
+        :type: health_check_timeout: int
+        :param: health_check_timeout: Maximum timeout of each health check response.
+        :type: health_check_http_code: string
+        :param: health_check_http_code: Regular health check HTTP status code. Multiple codes are segmented by ",".
+        :type: health_check_interval: int
+        :param: health_check_interval: Time interval of health checks.
+        :type: vserver_group_id: string
+        :param: vserver_group_id: Virtual server group ID.
+        :type: gzip: string
+        :param: gzip: whether open Gzip compression
+        :type: server_certificate_id: string
+        :param: server_certificate_id: Server certificate ID.
+        :type: master_slave_server_group_id: string
+        :param: master_slave_server_group_id: Master standby server group ID
+        :type: persistence_timeout: string
+        :param: persistence_timeout: Timeout time for connection persistence.
+        :type: health_check_connect_timeout: int
+        :param: health_check_connect_timeout: Health check connection timeout.
+        :type: xforwarded_for: int
+        :param: xforwarded_for: Whether open access to the actual IP of visitors through X-Forwarded-For
+        :type: ca_certificate_id: string
+        :param: ca_certificate_id: CA certificate ID
+        :type: syn_proxy: string
+        :param: syn_proxy: CA certificate ID
+        :type: health_check_type: string
+        :param: health_check_type: health check type
+        :type: vserver_group: string
+        :param: vserver_group: Whether to use a virtual server group
+        :type: master_slave_server_group: string
+        :param: master_slave_server_group: Whether to use the primary and secondary server groups
+        :return: returns request status
         """
-
         params = {}
-        results = []
-        changed = False
-        listener_port = None
+        listener_type_dic = dict(http="SetLoadBalancerHTTPListenerAttribute",\
+                                 https= "SetLoadBalancerHTTPSListenerAttribute",\
+                                 tcp="SetLoadBalancerTCPListenerAttribute",\
+                                 udp="SetLoadBalancerUDPListenerAttribute")
+        key = listener_type_dic.get(listener_type, '')
 
-        if listener:              
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
-
-            if 'load_balancer_port' in listener:
-                listener_port = listener['load_balancer_port']
-            if 'listener_port' in listener:
-                listener_port = listener['listener_port']
-            if listener_port:
-                self.build_list_params(params, listener_port, 'ListenerPort')
-
-            backend_server_port = None
-            if 'instance_port' in listener:
-                backend_server_port = listener['instance_port']
-            if 'backend_server_port' in listener:
-                backend_server_port = listener['backend_server_port']
-            if backend_server_port:
-                self.build_list_params(params, backend_server_port, 'BackendServerPort')
-
-            if 'bandwidth' in listener:
-                self.build_list_params(params, listener['bandwidth'], 'Bandwidth')
-            if 'scheduler' in listener:
-                self.build_list_params(params, listener['scheduler'], 'Scheduler')
-
-            if 'health_check' in listener:
-                health_check = listener['health_check']                  
-                self.build_list_params(params, "on", 'HealthCheck')
-                if 'domain' in health_check:
-                    self.build_list_params(params, health_check['domain'], 'HealthCheckDomain')
-
-                health_check_uri = None
-                if 'ping_path' in health_check:
-                    health_check_uri = health_check['ping_path']
-                if 'uri' in health_check:
-                    health_check_uri = health_check['uri']
-                if health_check_uri:
-                    self.build_list_params(params, health_check_uri, 'HealthCheckURI')
-
-                health_check_connect_port = None
-                if 'ping_port' in health_check:
-                    health_check_connect_port = health_check['ping_port']
-                if 'connect_port' in health_check:
-                    health_check_connect_port = health_check['connect_port']
-                if health_check_connect_port:
-                    self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
-
-                if 'healthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['healthy_threshold'], 'HealthyThreshold')
-                if 'unhealthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['unhealthy_threshold'], 'UnhealthyThreshold')
-
-                health_check_timeout = None
-                if 'response_timeout' in health_check:
-                    health_check_timeout = health_check['response_timeout']
-                if 'timeout' in health_check:
-                    health_check_timeout = health_check['timeout']
-                if health_check_timeout:
-                    self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
-
-                if 'interval' in health_check:
-                    self.build_list_params(params, health_check['interval'], 'HealthCheckInterval')
-                if 'http_code' in health_check:
-                    self.build_list_params(params, health_check['http_code'], 'HealthCheckHttpCode')    
-
-        try:
-            results = self.get_status('CreateLoadBalancerTCPListener', params)
-            changed = True
-            # Start tcp Listener
-            params = {}
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
+        self.build_list_params(params, bandwidth, 'Bandwidth')
+        if listener_port:
             self.build_list_params(params, listener_port, 'ListenerPort')
-            self.get_status('StartLoadBalancerListener', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        if health_check:
+            self.build_list_params(params, health_check, 'HealthCheck')
+        if sticky_session:
+            self.build_list_params(params, sticky_session, 'StickySession')
+        if server_certificate_id:
+            self.build_list_params(params, server_certificate_id, 'ServerCertificateId')
+        if scheduler:
+            self.build_list_params(params, scheduler, 'Scheduler')
+        if xforwarded_for:
+            self.build_list_params(params, 'on', 'XForwardedFor')
+        if sticky_session_type:
+            self.build_list_params(params, sticky_session_type, 'StickySessionType')
+        if cookie_timeout:
+            self.build_list_params(params, cookie_timeout, 'CookieTimeout')
+        if cookie:
+            self.build_list_params(params, cookie, 'Cookie')
+        if health_check_domain:
+            self.build_list_params(params, health_check_domain, 'HealthCheckDomain')
+        if health_check_uri:
+            self.build_list_params(params, health_check_uri, 'HealthCheckURI')
+        if health_check_connect_port:
+            self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
+        if healthy_threshold:
+            self.build_list_params(params, healthy_threshold, 'HealthyThreshold')
+        if unhealthy_threshold:
+            self.build_list_params(params, unhealthy_threshold, 'UnhealthyThreshold')
+        if health_check_timeout:
+            self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
+        if health_check_interval:
+            self.build_list_params(params, health_check_interval, 'HealthCheckInterval')
+        if health_check_http_code:
+            self.build_list_params(params, health_check_http_code, 'HealthCheckHttpCode')
+        if vserver_group:
+            self.build_list_params(params, vserver_group, 'VServerGroup')
+        if vserver_group_id:
+            self.build_list_params(params, vserver_group_id, 'VServerGroupId')
+        if master_slave_server_group_id:
+            self.build_list_params(params, master_slave_server_group_id, 'MasterSlaveServerGroupId')
+        if master_slave_server_group:
+            self.build_list_params(params, master_slave_server_group, 'MasterSlaveServerGroup')
+        if ca_certificate_id:
+            self.build_list_params(params, ca_certificate_id, 'CACertificateId')
+        if syn_proxy:
+            self.build_list_params(params, syn_proxy, 'SynProxy')
+        if health_check_type:
+            self.build_list_params(params, health_check_type, 'HealthCheckType')
+        if gzip:
+            self.build_list_params(params, gzip, 'Gzip')
+        if persistence_timeout:
+            self.build_list_params(params, persistence_timeout, 'PersistenceTimeout')
+        if health_check_connect_timeout:
+            self.build_list_params(params, health_check_connect_timeout, 'HealthCheckConnectTimeout')
 
-        return changed, results
+        return self.get_status(key, params)
 
-    def create_load_balancer_udp_listener(self, slb_id, listener):
+    def delete_load_balancer_listener(self, load_balancer_id, listener_port):
         """
-        Configures an UDP Listener, including Scheduler, HealthCheck etc
-        :type slb_id: dict
-        :param slb_id:  ID of Server Load Balancer
-        :type listener: dict
-        :param listener:
-         - listener_port/load_balancer_port: Server Load Balancer instance’s frontend port. Value: 1-65535
-         - backend_server_port/instance_port: Server Load Balancer instance’s backend port. Value: 1-65535
-         - bandwidth: Listener’s peak bandwidth. Value: -1 / 1-1000 Mbps
-         - scheduler: Scheduling algorithm. Value: wrr / wlc / rr Default value: wrr
-         - health_check:
-            - connect_port/ping_port: Port used for health checks
-            - healthy_threshold: Threshold value for determining health check results as Success
-            - unhealthy_threshold: Threshold value for determining health check results as Fail
-            - timeout/response_timeout: Maximum timeout time for each health check response
-            - interval: Interval between health checks
-        :return: returns RequestId of request
+        delete load balance listener
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :return: returns bool
         """
-
         params = {}
-        results = []
-        changed = False
-        listener_port = None
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
 
-        if listener:              
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
+        return self.get_status('DeleteLoadBalancerListener', params)
 
-            if 'load_balancer_port' in listener:
-                listener_port = listener['load_balancer_port']
-            if 'listener_port' in listener:
-                listener_port = listener['listener_port']
-            if listener_port:
-                self.build_list_params(params, listener_port, 'ListenerPort')
+    def start_load_balancer_listener(self, load_balancer_id, listener_port):
+        """
+        start load balance listener
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :return: returns bool
+        """
+        params = {}
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
 
-            backend_server_port = None
-            if 'instance_port' in listener:
-                backend_server_port = listener['instance_port']
-            if 'backend_server_port' in listener:
-                backend_server_port = listener['backend_server_port']
-            if backend_server_port:
-                self.build_list_params(params, backend_server_port, 'BackendServerPort')
+        return self.get_status('StartLoadBalancerListener', params)
 
-            if 'bandwidth' in listener:
-                self.build_list_params(params, listener['bandwidth'], 'Bandwidth')
-            if 'scheduler' in listener:
-                self.build_list_params(params, listener['scheduler'], 'Scheduler')
+    def stop_load_balancer_listener(self, load_balancer_id, listener_port):
+        """
+        stop load balance listener
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :return: returns bool
+        """
+        params = {}
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
 
-            if 'health_check' in listener:
-                health_check = listener['health_check']                  
-                self.build_list_params(params, "on", 'HealthCheck')
+        return self.get_status('StopLoadBalancerListener', params)
 
-                health_check_connect_port = None
-                if 'ping_port' in health_check:
-                    health_check_connect_port = health_check['ping_port']
-                if 'connect_port' in health_check:
-                    health_check_connect_port = health_check['connect_port']
-                if health_check_connect_port:
-                    self.build_list_params(params, health_check_connect_port, 'HealthCheckConnectPort')
+    def add_listener_white_list_item(self, load_balancer_id, listener_port, source_items):
+        """
+        add load balance listener white list item
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :type source_items: string
+        :param source_items: Access control list
+        :return: returns bool
+        """
+        params = {}
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
+        self.build_list_params(params, source_items, 'SourceItems')
 
-                if 'healthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['healthy_threshold'], 'HealthyThreshold')
-                if 'unhealthy_threshold' in health_check:
-                    self.build_list_params(params, health_check['unhealthy_threshold'], 'UnhealthyThreshold')
+        return self.get_status('AddListenerWhiteListItem', params)
 
-                health_check_timeout = None
-                if 'response_timeout' in health_check:
-                    health_check_timeout = health_check['response_timeout']
-                if 'timeout' in health_check:
-                    health_check_timeout = health_check['timeout']
-                if health_check_timeout:
-                    self.build_list_params(params, health_check_timeout, 'HealthCheckTimeout')
+    def remove_listener_white_list_item(self, load_balancer_id, listener_port, source_items):
+        """
+        remove load balance listener white list item
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :type source_items: string
+        :param source_items: Access control list
+        :return: returns bool
+        """
+        params = {}
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
+        self.build_list_params(params, source_items, 'SourceItems')
 
-                if 'interval' in health_check:
-                    self.build_list_params(params, health_check['interval'], 'HealthCheckInterval')
+        return self.get_status('RemoveListenerWhiteListItem', params)
 
+    def describe_load_balancer_listener_attribute(self, load_balancer_id, listener_port, listener_type):
+        """
+        describe load balancer listener attribute
+        :type load_balancer_id: string
+        :param load_balancer_id: Load balancer instance  id
+        :type listener_port: string
+        :param listener_port: Load balancer instance  frontend port. Value: 1-65535
+        :return: obj: object of listener
+        """
+        params = {}
+        obj = None
+        listener_type_dic = dict(http="DescribeLoadBalancerHTTPListenerAttribute",\
+                                 https="DescribeLoadBalancerHTTPSListenerAttribute",\
+                                 tcp="DescribeLoadBalancerTCPListenerAttribute",\
+                                 udp="DescribeLoadBalancerUDPListenerAttribute")
+        key = listener_type_dic.get(listener_type, '')
+        self.build_list_params(params, load_balancer_id, 'LoadBalancerId')
+        self.build_list_params(params, listener_port, 'ListenerPort')
         try:
-            results = self.get_status('CreateLoadBalancerUDPListener', params)
-            changed = True
-            # Start udp Listener
-            params = {}
-            self.build_list_params(params, slb_id, 'LoadBalancerId')
-            self.build_list_params(params, listener_port, 'ListenerPort')
-            self.get_status('StartLoadBalancerListener', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
+            obj = self.get_object(key, params, LoadBalancerListener)
+        except Exception as e:
+            obj = None
+        return obj
 
     def add_backend_servers(self, load_balancer_id, backend_servers=None):
         """
@@ -799,7 +751,7 @@ class SLBConnection(ACSQueryConnection):
         :param load_balancer_id: ID of server load balancer
         :type load_balancer_status: String
         :param load_balancer_status: Status of an Server Load Balancer instance
-            Value：inactive | active
+            Value: inactive | active
         :return: return name of the operating interface, which is
             specified in the system
         """
