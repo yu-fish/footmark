@@ -17,7 +17,7 @@ from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError
 from functools import wraps
 from footmark.resultset import ResultSet
-# from aliyunsdkecs.request.v20140526.DescribeSecurityGroupAttributeRequest import
+# from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import t import
 from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
@@ -78,7 +78,7 @@ class ECSConnection(ACSQueryConnection):
 
     # Instance methods
 
-    def get_all_instances(self, instance_ids=None, filters=None, max_results=None):
+    def get_all_instances(self, zone_id=None, instance_ids=None, instance_name=None, filters=None, pagenumber=1, pagesize=100):
         """
         Retrieve all the instance associated with your account. 
 
@@ -89,30 +89,42 @@ class ECSConnection(ACSQueryConnection):
         warnings.warn(('The current get_all_instances implementation will be '
                        'replaced with get_all_instances.'),
                       PendingDeprecationWarning)
-
+        instances = []
         try:
             params = {}
+            if zone_id:
+                self.build_list_params(params, zone_id, 'ZoneId')
             if instance_ids:
                 self.build_list_params(params, instance_ids, 'InstanceIds')
+            if instance_name:
+                self.build_list_params(params, instance_name, 'InstanceName')
             if filters:
                 self.build_filter_params(params, filters)
-            if max_results is not None:
-                params['MaxResults'] = max_results
-            instances = self.get_list('DescribeInstances', params, ['Instances', Instance])
-            for inst in instances:
-                filters = {}
-                filters['instance_id'] = inst.id
-                volumes = self.get_all_volumes(filters=filters)
-                block_device_mapping = {}
-                for vol in volumes:
-                    block_device_mapping[vol.id] = vol
-                setattr(inst, 'block_device_mapping', block_device_mapping)
-                if inst.security_group_ids:
-                    group_ids = []
-                    for sg_id in inst.security_group_ids['security_group_id']:
-                        group_ids.append(str(sg_id))
-                        security_groups = self.get_all_security_groups(group_ids=group_ids)
-                        setattr(inst, 'security_groups', security_groups)
+
+            self.build_list_params(params, pagesize, 'PageSize')
+
+            while True:
+                self.build_list_params(params, pagenumber, 'PageNumber')
+                instance_list = self.get_list('DescribeInstances', params, ['Instances', Instance])
+                for inst in instance_list:
+                    filters = {}
+                    filters['instance_id'] = inst.id
+                    volumes = self.get_all_volumes(filters=filters)
+                    block_device_mapping = {}
+                    for vol in volumes:
+                        block_device_mapping[vol.id] = vol
+                    setattr(inst, 'block_device_mapping', block_device_mapping)
+                    if inst.security_group_ids:
+                        group_ids = []
+                        for sg_id in inst.security_group_ids['security_group_id']:
+                            group_ids.append(str(sg_id))
+                            security_groups = self.get_all_security_groups(group_ids=group_ids)
+                            setattr(inst, 'security_groups', security_groups)
+                    instances.append(inst)
+                if len(instance_list) < pagesize:
+                    break
+                pagenumber += 1
+
         except ServerException as e:
             raise e
         except Exception as e:
@@ -285,10 +297,11 @@ class ECSConnection(ACSQueryConnection):
         return self.get_list('DescribeDisks', params, ['Disks', Disk])
 
     def create_instance(self, image_id, instance_type, group_id=None, zone_id=None, instance_name=None,
-                        description=None, internet_data=None, host_name=None, password=None, io_optimized=None,
-                        system_disk=None, disks=None, vswitch_id=None, private_ip=None, count=None,
-                        allocate_public_ip=None, bind_eip=None, instance_charge_type=None, period=None, auto_renew=None,
-                        auto_renew_period=None, instance_tags=None, ids=None, wait=None, wait_timeout=None):
+                        description=None, internet_charge_type=None, max_bandwidth_in=None, max_bandwidth_out=None,
+                        host_name=None, password=None, io_optimized='optimized', system_disk_category=None, system_disk_size=None,
+                        system_disk_name=None, system_disk_description=None, disks=None, vswitch_id=None, private_ip=None,
+                        count=None, allocate_public_ip=None, instance_charge_type=None, period=None,
+                        auto_renew=None, auto_renew_period=None, instance_tags=None):
         """
         create an instance in ecs
 
@@ -405,8 +418,6 @@ class ECSConnection(ACSQueryConnection):
         """
 
         params = {}
-        results = []
-        changed = False
 
         # Datacenter Zone ID
         if zone_id:
@@ -430,17 +441,12 @@ class ECSConnection(ACSQueryConnection):
         if description:
             self.build_list_params(params, description, 'Description')
 
-        # Internet Data
-        if internet_data:
-            if 'charge_type' in internet_data:
-                self.build_list_params(params, internet_data[
-                    'charge_type'], 'InternetChargeType')
-            if 'max_bandwidth_in' in internet_data:
-                self.build_list_params(params, internet_data[
-                    'max_bandwidth_in'], 'InternetMaxBandwidthIn')
-            if 'max_bandwidth_out' in internet_data:
-                self.build_list_params(params, internet_data[
-                    'max_bandwidth_out'], 'InternetMaxBandwidthOut')
+        if internet_charge_type:
+            self.build_list_params(params, internet_charge_type, 'InternetChargeType')
+        if max_bandwidth_in:
+            self.build_list_params(params, max_bandwidth_in, 'InternetMaxBandwidthIn')
+        if max_bandwidth_out:
+            self.build_list_params(params, max_bandwidth_out, 'InternetMaxBandwidthOut')
 
         # Security Setup
         if host_name:
@@ -455,19 +461,14 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, "optimized", 'IoOptimized')
 
         # Storage - Primary Disk
-        if system_disk:
-            if 'disk_category' in system_disk:
-                self.build_list_params(params, system_disk[
-                    'disk_category'], 'SystemDisk.Category')
-            if 'disk_size' in system_disk:
-                self.build_list_params(params, system_disk[
-                    'disk_size'], 'SystemDisk.Size')
-            if 'disk_name' in system_disk:
-                self.build_list_params(params, system_disk[
-                    'disk_name'], 'SystemDisk.DiskName')
-            if 'disk_description' in system_disk:
-                self.build_list_params(params, system_disk[
-                    'disk_description'], 'SystemDisk.Description')
+        if system_disk_category:
+            self.build_list_params(params, system_disk_category, 'SystemDisk.Category')
+        if system_disk_size:
+            self.build_list_params(params, system_disk_size, 'SystemDisk.Size')
+        if system_disk_name:
+            self.build_list_params(params, system_disk_name, 'SystemDisk.DiskName')
+        if system_disk_description:
+            self.build_list_params(params, system_disk_description, 'SystemDisk.Description')
 
         # Disks Details
         disk_no = 1
@@ -527,94 +528,66 @@ class ECSConnection(ACSQueryConnection):
                                 'tag_value'], 'Tag' + str(tag_no) + 'Value')
                             tag_no += 1
 
-        # Client Token
-        if ids:
-            if len(ids) == count:
-                self.build_list_params(params, ids, 'ClientToken')
-
         instances = []
 
         for i in range(count):
             # CreateInstance method call, returns newly created instanceId
-            try:
-                result = self.get_object('CreateInstance', params, ResultSet)
-                instance_id = result.instance_id
-                results.append({"instance_id": instance_id})
-                changed = True
+            result = self.get_object('CreateInstance', params, ResultSet)
+            instance_id = result.instance_id
 
-                self.wait_for_instance_status(instance_id, "Stopped")
-                # Allocate allocate public ip
-                if allocate_public_ip:
-                    allocate_public_ip_params = {}
-                    self.build_list_params(allocate_public_ip_params, instance_id, 'InstanceId')
-                    self.get_status('AllocatePublicIpAddress', allocate_public_ip_params)
-                # Allocate EIP Address
-                if bind_eip:
-                    allocate_eip_params = {}
-                    self.build_list_params(
-                        allocate_eip_params, bind_eip, 'AllocationId')
-                    self.build_list_params(
-                        allocate_eip_params, instance_id, 'InstanceId')
-                    self.get_status('AssociateEipAddress', allocate_eip_params)
+            self.wait_for_instance_status(instance_id, "Stopped")
+            # Allocate allocate public ip
+            if allocate_public_ip:
+                allocate_public_ip_params = {}
+                self.build_list_params(allocate_public_ip_params, instance_id, 'InstanceId')
+                self.get_status('AllocatePublicIpAddress', allocate_public_ip_params)
 
-                # Start newly created Instance
-                self.start_instances(instance_id)
-                # get instance in running mode
-                self.wait_for_instance_status(instance_id, "Running")
+            # Start newly created Instance
+            self.start_instances(instance_id)
+            # get instance in running mode
+            self.wait_for_instance_status(instance_id, "Running")
 
-                instances.append(self.get_instance_details(instance_id))
+            instances.append(self.get_instance_details(instance_id))
 
-            except ECSResponseError as e:
-                results.append({"Error Code": e.error_code, "Error Message": e.message,
-                                "RequestId": e.request_id, "Http Status": e.http_status})
-            except Exception as e:
-                results.append({"Error": e})
+        return instances
 
-        # if str(wait).lower() in ['yes', 'true'] and wait_timeout:
-        #     time.sleep(wait_timeout)
-
-        return changed, instances, results
-
-    def modify_instance(self, attributes=None):
+    def modify_instances(self, instance_ids, name=None, description=None, host_name=None, password=None):
         """
         modify the instance attributes such as name, description, password and host_name
 
-        :type: list
-        :param attributes: A list of dictionary of instance attributes which includes
-            id, name, description, password and host_name
+        :type instance_ids: list
+        :param instance_ids: The list of Instance ID
+        :type name: str
+        :param name: Instance Name
+        :type description: str
+        :param description: Instance Description
+        :type host_name: str
+        :param host_name: Instance Host Name
+        :type password: str
+        :param password: Instance Password
         :return: A list of the instance_ids modified
         """
         results = []
         changed = False
-        if attributes:
-            for attribute in attributes:
-                if attribute:
-                    params = {}
-                    if 'id' in attribute:
-                        self.build_list_params(params, attribute['id'], 'InstanceId')
-                    if 'name' in attribute:
-                        self.build_list_params(params, attribute['name'], 'InstanceName')
-                    if 'description' in attribute:
-                        self.build_list_params(params, attribute['description'], 'Description')
-                    if 'password' in attribute:
-                        self.build_list_params(params, attribute['password'], 'Password')
-                    if 'host_name' in attribute:
-                        self.build_list_params(params, attribute['host_name'], 'HostName')
+        params = {}
 
-                    try:
-                        changed = self.get_status('ModifyInstanceAttribute', params)
-                        if 'password' in attribute:
-                            self.reboot_instances(instance_ids=[attribute['id']], force=True)
-                            self.wait_for_instance_status(attribute['id'], "Running")
-                        if changed:
-                            results.append("Instance %s attribute has been modified successfully.")
-                    except ServerException as e:
-                        results.append({"Error Code": e.error_code, "Error Message": e.message,
-                                        "RequestId": e.request_id, "Http Status": e.http_status})
-                    except Exception as e:
-                        results.append({"Error:": e})
+        if name:
+            self.build_list_params(params, name, 'InstanceName')
+        if description:
+            self.build_list_params(params, description, 'Description')
+        if password:
+            self.build_list_params(params, password, 'Password')
+        if host_name:
+            self.build_list_params(params, host_name, 'HostName')
 
-        return changed, results
+        for id in instance_ids:
+            self.build_list_params(params, id, 'InstanceId')
+            self.get_status('ModifyInstanceAttribute', params)
+            if password:
+                self.reboot_instances([id])
+            results.append(id)
+
+        return results
 
     def get_instance_status(self, zone_id=None, pagenumber=None, pagesize=None):
         """
@@ -654,12 +627,12 @@ class ECSConnection(ACSQueryConnection):
 
         return False, results
 
-    def join_security_group(self, instance_ids, group_id):
+    def join_security_group(self, instance_id, group_id):
         """
         Assign an existing instance to a pre existing security group
 
-        :type instance_ids: List
-        :param instance_ids: The list of instance id's which are to be assigned to the security group
+        :type instance_id: str
+        :param instance_id: The instance id which are to be assigned to the security group
 
         :type group_id: dict
         :param group_id: ID of the security group to which a instance is to be added
@@ -671,43 +644,22 @@ class ECSConnection(ACSQueryConnection):
         failed_instance_ids = []
         changed = False
 
-        if not isinstance(instance_ids, list):
-            results.append({"Error Message": "The specified instance_ids must be of type list"})
-            return changed, results, success_instance_ids, failed_instance_ids
+        params = {}
+        # Instance Id, which is to be added to a security group
+        self.build_list_params(params, instance_id, 'InstanceId')
 
-        for inst in instance_ids:
-            params = {}
-            # Instance Id, which is to be added to a security group
-            self.build_list_params(params, inst, 'InstanceId')
+        # Security Group ID, an already existing security group, to which instance is added
+        self.build_list_params(params, group_id, 'SecurityGroupId')
 
-            # Security Group ID, an already existing security group, to which instance is added
-            self.build_list_params(params, group_id, 'SecurityGroupId')
+        # Method Call, to perform adding action
+        return self.get_status('JoinSecurityGroup', params)
 
-            # Method Call, to perform adding action
-            try:
-                self.get_status('JoinSecurityGroup', params)
-
-                # Verifying whether operation got performed successfully
-                changed = self.verify_join_remove_securitygrp(inst, group_id, 'join')
-                if changed:
-                    success_instance_ids.append(inst)
-
-            except ServerException as e:
-                failed_instance_ids.append(inst)
-                results.append({"Error Code": e.error_code, "Error Message": e.message,
-                                "RequestId": e.request_id, "Http Status": e.http_status})
-            except Exception as e:
-                failed_instance_ids.append(inst)
-                results.append({"Error": e})
-
-        return changed, results, success_instance_ids, failed_instance_ids
-
-    def leave_security_group(self, instance_ids, group_id):
+    def leave_security_group(self, instance_id, group_id):
         """
         Remove an existing instance from given security group
 
-        :type instance_ids: List
-        :param instance_ids: The list of instance id's which are to be assigned to the security group
+        :type instance_id: str
+        :param instance_id: The instance id which are to be assigned to the security group
 
         :type group_id: dict
         :param group_id: ID of the security group to which a instance is to be added
@@ -715,38 +667,14 @@ class ECSConnection(ACSQueryConnection):
         :return: Success message, confirming joining security group or error message if any
         """
         params = {}
-        results = []
-        success_instance_ids = []
-        failed_instance_ids = []
-        changed = False
-
-        if not isinstance(instance_ids, list):
-            results.append({"Error Message": "The specified instance_ids must be of type list"})
-            return changed, results, success_instance_ids, failed_instance_ids
 
         # Security Group ID, an already existing security group, from which instance is removed
         self.build_list_params(params, group_id, 'SecurityGroupId')
-        for inst in instance_ids:
-            # Instance Id to be removed from a security group
-            self.build_list_params(params, inst, 'InstanceId')
+        # Instance Id to be removed from a security group
+        self.build_list_params(params, instance_id, 'InstanceId')
 
-            # Method Call, to perform adding action
-            try:
-                self.get_status('LeaveSecurityGroup', params)
-                # Verifying whether operation got performed successfully
-                changed = self.verify_join_remove_securitygrp(inst, group_id, 'remove')
-                if changed:
-                    success_instance_ids.append(inst)
-
-            except ServerException as e:
-                failed_instance_ids.append(inst)
-                results.append({"Error Code": e.error_code, "Error Message": e.message,
-                                "RequestId": e.request_id, "Http Status": e.http_status})
-            except Exception as e:
-                failed_instance_ids.append(inst)
-                results.append({"Error": e})
-
-        return changed, results, success_instance_ids, failed_instance_ids
+        # Method Call, to perform adding action
+        return self.get_status('LeaveSecurityGroup', params)
 
     def create_security_group(self, group_name=None, description=None, group_tags=None, vpc_id=None):
         """

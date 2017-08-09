@@ -19,6 +19,8 @@ class Instance(TaggedECSObject):
     def __getattr__(self, name):
         if name == 'id':
             return self.instance_id
+        if name == 'name':
+            return self.instance_name
         if name == 'state':
             return self.status
         if name in ('private_ip', 'inner_ip', 'inner_ip_address'):
@@ -42,6 +44,8 @@ class Instance(TaggedECSObject):
     def __setattr__(self, name, value):
         if name == 'id':
             self.instance_id = value
+        if name == 'name':
+            self.instance_name = value
         if name == 'status':
             value = value.lower()
         if name == 'state':
@@ -124,6 +128,22 @@ class Instance(TaggedECSObject):
         """
         return self.connection.reboot_instances([self.id], force)
 
+    def modify(self, name=None, description=None, host_name=None, password=None):
+        """
+        Modify the instance.
+
+        :type name: str
+        :param name: Instance Name
+        :type description: str
+        :param description: Instance Description
+        :type host_name: str
+        :param host_name: Instance Host Name
+        :type password: str
+        :param password: Instance Password
+        """
+        return self.connection.modify_instances([self.id], name=name, description=description,
+                                                host_name=host_name, password=password)
+
     def terminate(self, force=False):
         """
         Terminate the instance
@@ -132,3 +152,21 @@ class Instance(TaggedECSObject):
         :param force: Forces the instance to terminate
         """
         rs = self.connection.terminate_instances([self.id], force)
+
+    def join_security_group(self, security_group_id):
+        """
+        Join one security group
+
+        :type security_group_id: str
+        :param security_group_id: The Security Group ID.
+        """
+        rs = self.connection.join_security_group(self.id, security_group_id)
+
+    def leave_security_group(self, security_group_id):
+        """
+        Leave one security group
+
+        :type security_group_id: str
+        :param security_group_id: The Security Group ID.
+        """
+        rs = self.connection.leave_security_group(self.id, security_group_id)
