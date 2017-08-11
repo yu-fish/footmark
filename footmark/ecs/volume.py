@@ -34,6 +34,8 @@ class Disk(TaggedECSObject):
             return getattr(self, 'disk' + name[6:])
         if name == 'id':
             return self.disk_id
+        if name == 'name':
+            return self.disk_name
         if name == 'state':
             return self.status
         if name == 'delete_on_termination':
@@ -45,6 +47,8 @@ class Disk(TaggedECSObject):
             return setattr(self, 'disk' + name[6:])
         if name == 'id':
             self.disk_id = value
+        if name == 'name':
+            self.disk_name = value
         if name == 'status':
             value = value.lower()
         if name == 'state':
@@ -85,3 +89,39 @@ class Disk(TaggedECSObject):
         elif validate:
             raise ValueError('%s is not a valid Volume ID' % self.id)
         return self.status
+
+    def attach(self, instance_id, delete_with_instance=None):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.attach_disk(self.id, instance_id, delete_with_instance=delete_with_instance)
+
+    def detach(self, instance_id):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.detach_disk(self.id, instance_id)
+
+    def delete(self):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.delete_disk(self.id)
+
+    def modify(self, disk_name=None, description=None, delete_with_instance=None):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.modify_disk(self.id, disk_name=disk_name, description=description, delete_with_instance=delete_with_instance)
