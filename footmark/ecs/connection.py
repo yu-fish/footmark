@@ -9,6 +9,7 @@ import six
 import time
 import json
 import logging
+from footmark.ecs.config import *
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
@@ -264,7 +265,7 @@ class ECSConnection(ACSQueryConnection):
                     result.append(instance_id)
         return result
 
-    def get_all_volumes(self, volume_ids=None, filters=None):
+    def get_all_volumes(self, zone_id=None, volume_ids=None, volume_name=None, filters=None):
         """
         Get all Volumes associated with the current credentials.
 
@@ -290,8 +291,16 @@ class ECSConnection(ACSQueryConnection):
         :return: The requested Volume objects
         """
         params = {}
+        if zone_id:
+            self.build_list_params(params, zone_id, 'ZoneId')
         if volume_ids:
-            self.build_list_params(params, volume_ids, 'DiskIds')
+            ids = "["
+            for id in volume_ids:
+                ids += "\"" + str(id) + "\""
+            ids += "]"
+            self.build_list_params(params, ids, 'DiskIds')
+        if volume_name:
+            self.build_list_params(params, volume_name, 'DiskName')
         if filters:
             self.build_filter_params(params, filters)
         return self.get_list('DescribeDisks', params, ['Disks', Disk])
@@ -1000,7 +1009,6 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         results = []
         changed = False
-        disk_id = None
 
         # Zone Id
         self.build_list_params(params, zone_id, 'ZoneId')
@@ -1038,17 +1046,15 @@ class ECSConnection(ACSQueryConnection):
         if snapshot_id:
             self.build_list_params(params, snapshot_id, 'SnapshotId')
 
-        try:
-            rs = self.get_object('CreateDisk', params, ResultSet)
-            results.append("Disk Creation Successful")
-            changed = True
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error:": e})
+        rs = self.get_object('CreateDisk', params, ResultSet)
 
-        return changed, str(rs.disk_id), results
+        return self.get_volume_attribute(str(rs.disk_id))
+
+    def get_volume_attribute(self, disk_id):
+        disks = self.get_all_volumes(volume_ids=[disk_id])
+        if disks:
+            return disks[0]
+        return None
 
     def attach_disk(self, disk_id, instance_id, delete_with_instance=None):
         """
@@ -1067,20 +1073,6 @@ class ECSConnection(ACSQueryConnection):
                  the ID of the VPC to which the security group belongs
         """
         params = {}
-        results = []
-        changed = False
-
-        if not instance_id:
-            results.append({"Error": "Disk %s is not attached to any instance, instance id: %s" % (disk_id, instance_id)})
-            return changed, results
-
-        _, disk_status, _, result = self.retrieve_instance_for_disk(disk_id)
-
-        if result:
-            return changed, result
-        if disk_status and str(disk_status).strip().lower() != "available":
-            results.append({"Error": "The disk %s status %s does not support to operate attachment." % (disk_id, disk_status)})
-            return changed, results
 
         # Instance Id, which is used to attach disk
         self.build_list_params(params, instance_id, 'InstanceId')
@@ -1100,20 +1092,10 @@ class ECSConnection(ACSQueryConnection):
             self.build_list_params(params, delete_with_instance, 'DeleteWithInstance')
 
         # Method Call, to perform adding action
-        try:
-            if self.get_status('AttachDisk', params):
-                changed, result = self.wait_for_disk_status(disk_id=disk_id, disk_status="in_use")
-                if not changed:
-                    results.append(result)
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error": e})
+        self.get_status('AttachDisk', params)
+        return self.wait_for_disk_status(disk_id=disk_id, status="in_use", delay=5, timeout=120)
 
-        return changed, results
-
-    def detach_disk(self, disk_id):
+    def detach_disk(self, disk_id, instance_id):
         """
         Method to detach a disk to instance
 
@@ -1125,18 +1107,10 @@ class ECSConnection(ACSQueryConnection):
         params = {}
         changed = False
         # region retrieve InstanceId from DiskId
-        instance_id, _, disk_portable, results = self.retrieve_instance_for_disk(disk_id)
-
-        if results:
-            return changed, results, instance_id
-
-        if not disk_portable:
-            results.append({"Error Message": "The disk %s can be detached, and its portable is %s." % (disk_id, disk_portable)})
-            return changed, results, instance_id
-
-        if not instance_id:
-            results.append({"Error Message": "Disk %s is not attached to any instance, instance id: %s" % (disk_id, instance_id)})
-            return changed, results, instance_id
+        # inst_id, _, disk_portable, results = self.retrieve_instance_for_disk(disk_id)
+        #
+        # if results or not disk_portable or instance_id != inst_id:
+        #     return changed
 
         # Instance Id, which is to be added to a detach disk
         self.build_list_params(params, instance_id, 'InstanceId')
@@ -1144,18 +1118,8 @@ class ECSConnection(ACSQueryConnection):
         # Disk Id, the disk_id to be mapped
         self.build_list_params(params, disk_id, 'DiskId')
 
-        try:
-            if self.get_status('DetachDisk', params):
-                changed, result = self.wait_for_disk_status(disk_id=disk_id, disk_status="available")
-                if not changed:
-                    results.append(result)
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error": e})
-
-        return changed, results, instance_id
+        self.get_status('DetachDisk', params)
+        return self.wait_for_disk_status(disk_id=disk_id, status="available", delay=5, timeout=120)
 
     def retrieve_instance_for_disk(self, disk_id):
         # method is used to retrieve instance_id from disk_id, it is required in detach disk.
@@ -1167,7 +1131,7 @@ class ECSConnection(ACSQueryConnection):
         disk_status = None
         disks = None
         try:
-            disks = self.get_all_volumes([disk_id])
+            disks = self.get_all_volumes(volume_ids=[disk_id])
             if not disks or len(disks) < 1 or not disks[0]:
                 return False, {"Error": "The specified disk %s is not found." % disk_id}
 
@@ -1204,20 +1168,40 @@ class ECSConnection(ACSQueryConnection):
         # the disk to be deleted
         self.build_list_params(params, disk_id, 'DiskId')
 
-        try:
-            # check disk exist or not
-            disk_list = self.get_all_volumes(volume_ids=[disk_id])
+        return self.delete_object_retry('DeleteDisk', params)
 
-            if len(disk_list) > 0:
-                changed = self.delete_object_retry('DeleteDisk', params)
+    def modify_disk(self, disk_id, disk_name=None, description=None, delete_with_instance=None):
+        """
+        Method to delete a disk
+
+        :type disk_id: dict
+        :param disk_id: ID of Disk for attaching detaching disk
+
+        :return: Return status of Operation
+        """
+        params = {}
+
+        print "*************8jinlaile2"
+        # the disk to be deleted
+        self.build_list_params(params, disk_id, 'DiskId')
+
+        if disk_name:
+            self.build_list_params(params, disk_name, 'DiskName')
+
+        if description:
+            self.build_list_params(params, description, 'Description')
+
+        if delete_with_instance:
+            if str(delete_with_instance).lower().strip() == 'yes':
+                delete_with_instance = 'true'
+            elif str(delete_with_instance).lower().strip() == 'no':
+                delete_with_instance = 'false'
             else:
-                results.append({"Error Message": "Disk %s is not found, and deleting it failed." % disk_id})
-        except ServerException as e:
-            results.append({"Error Code": e.error_code, "Error Message": e.message,
-                            "RequestId": e.request_id, "Http Status": e.http_status})
-        except Exception as e:
-            results.append({"Error": e})
-        return changed, results
+                delete_with_instance = str(delete_with_instance).lower().strip()
+
+            self.build_list_params(params, delete_with_instance, 'DeleteWithInstance')
+
+        return self.get_status('ModifyDiskAttribute', params)
 
     def create_image(self, snapshot_id=None, image_name=None, image_version=None, description=None,
                      images_tags=None, instance_id=None, disk_mapping=None, launch_permission=None,
@@ -1542,24 +1526,25 @@ class ECSConnection(ACSQueryConnection):
             raise Exception
 
     @retry(Exception, tries=3)
-    def wait_for_disk_status(self, disk_id, disk_status):
+    def wait_for_disk_status(self, disk_id, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         """
         To verify disk status has become expected after attaching or detaching disk
         """
-        done = False
         try:
-            while not done:
-                time.sleep(3)
-                disks = self.get_all_volumes([disk_id])
-                if not disks or len(disks) < 1 or not disks[0]:
-                    return False, {"Error": "The specified disk %s is not found." % disk_id}
+            while True:
+                volume = self.get_volume_attribute(disk_id)
+                if volume and str(volume.status).lower() in [status, str(status).lower()]:
+                    return True
 
-                # wait until disk status becomes specified
-                if disk_status == str(disks[0].status).strip().lower():
-                    return True, None
+                timeout -= delay
 
-        except Exception:
-            raise Exception
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for Disk status is %s, time-consuming %d seconds." % (status, timeout))
+
+                time.sleep(delay)
+            return False
+        except Exception as e:
+            raise e
 
     @retry(Exception, tries=4)
     def delete_object_retry(self, action, params):
