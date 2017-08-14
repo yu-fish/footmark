@@ -207,7 +207,7 @@ class ECSConnection(ACSQueryConnection):
                 self.get_status('StopInstance', params)
 
             for instance_id in instance_ids:
-                if self.wait_for_instance_status(instance_id, "Stopped"):
+                if self.wait_for_instance_status(instance_id, "Stopped", delay=5, timeout=DefaultTimeOut):
                     results.append(instance_id)
         return results
 
@@ -234,7 +234,7 @@ class ECSConnection(ACSQueryConnection):
                 self.get_status('RebootInstance', params)
 
             for instance_id in instance_ids:
-                if self.wait_for_instance_status(instance_id, "Running"):
+                if self.wait_for_instance_status(instance_id, "Running", delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
                     results.append(instance_id)
 
         return results
@@ -261,7 +261,7 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.delete_object_retry('DeleteInstance', params):
+                if self.delete_object_retry('DeleteInstance', params, delay=3, timeout=DefaultTimeOut):
                     result.append(instance_id)
         return result
 
@@ -544,7 +544,7 @@ class ECSConnection(ACSQueryConnection):
             result = self.get_object('CreateInstance', params, ResultSet)
             instance_id = result.instance_id
 
-            self.wait_for_instance_status(instance_id, "Stopped")
+            self.wait_for_instance_status(instance_id, "Stopped", delay=5, timeout=DefaultTimeOut)
             # Allocate allocate public ip
             if allocate_public_ip:
                 allocate_public_ip_params = {}
@@ -554,7 +554,7 @@ class ECSConnection(ACSQueryConnection):
             # Start newly created Instance
             self.start_instances(instance_id)
             # get instance in running mode
-            self.wait_for_instance_status(instance_id, "Running")
+            self.wait_for_instance_status(instance_id, "Running", delay=5, timeout=DefaultTimeOut)
 
             instances.append(self.get_instance_details(instance_id))
 
@@ -941,26 +941,23 @@ class ECSConnection(ACSQueryConnection):
             return groups
         return results
 
-    def delete_security_group(self, group_ids):
+    def delete_security_group(self, group_id):
         """
         Delete Security Group , delete security group inside particular region.
 
-        :type  group_ids: dict
-        :param group_ids: The Security Group ID
+        :type  group_id: str
+        :param group_id: The Security Group ID
 
-        :rtype: string
+        :rtype: bool
         :return: A method return result of after successfully deletion of security group
         """
         # Call DescribeSecurityGroups method to get response for all running instances
         params = {}
         results = []
-        for group_id in group_ids:
-            if group_id:
-                self.build_list_params(params, group_id, 'SecurityGroupId')
-                self.get_status('DeleteSecurityGroup', params)
-                results.append(group_id)
+        if group_id:
+            self.build_list_params(params, group_id, 'SecurityGroupId')
 
-        return results
+        return self.get_status('DeleteSecurityGroup', params)
 
     def create_disk(self, zone_id, disk_name=None, description=None,
                     disk_category=None, size=None, disk_tags=None,
@@ -1168,7 +1165,7 @@ class ECSConnection(ACSQueryConnection):
         # the disk to be deleted
         self.build_list_params(params, disk_id, 'DiskId')
 
-        return self.delete_object_retry('DeleteDisk', params)
+        return self.delete_object_retry('DeleteDisk', params, delay=3, timeout=DefaultTimeOut)
 
     def modify_disk(self, disk_id, disk_name=None, description=None, delete_with_instance=None):
         """
@@ -1181,7 +1178,6 @@ class ECSConnection(ACSQueryConnection):
         """
         params = {}
 
-        print "*************8jinlaile2"
         # the disk to be deleted
         self.build_list_params(params, disk_id, 'DiskId')
 
@@ -1490,42 +1486,26 @@ class ECSConnection(ACSQueryConnection):
 
         return self.get_object('DescribeInstanceAttribute', params, Instance)
 
-    # retry decorator
-    def retry(ExceptionToCheck, tries=10, delay=30, backoff=2, logger=None):
-
-        def deco_retry(f):
-
-            @wraps(f)
-            def f_retry(*args, **kwargs):
-                mtries, mdelay = tries, delay
-                while mtries > 1:
-                    try:
-                        return f(*args, **kwargs)
-                    except ExceptionToCheck, e:
-                        time.sleep(mdelay)
-                        mtries -= 1
-                        mdelay *= backoff
-                return f(*args, **kwargs)
-
-            return f_retry  # true decorator
-
-        return deco_retry
-
-    # Use retry decorator
-    @retry(Exception, tries=10)
-    def wait_for_instance_status(self, instance_id, status):
+    def wait_for_instance_status(self, instance_id, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
+        """
+        To verify instance status has become expected
+        """
         try:
-            instance = self.get_instance_details(instance_id)
-            if instance:
-                # wait until instance status is expected
-                while instance.status not in [status, str(status).lower()]:
-                    time.sleep(10)
-                    instance = self.get_instance_details(instance_id)
+            while True:
+                instance = self.get_instance_details(instance_id)
+                if instance and str(instance.status).lower() in [status, str(status).lower()]:
+                    return True
 
-        except Exception:
-            raise Exception
+                timeout -= delay
 
-    @retry(Exception, tries=3)
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for Disk status is %s, time-consuming %d seconds." % (status, timeout))
+
+                time.sleep(delay)
+            return False
+        except Exception as e:
+            raise e
+
     def wait_for_disk_status(self, disk_id, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         """
         To verify disk status has become expected after attaching or detaching disk
@@ -1546,27 +1526,29 @@ class ECSConnection(ACSQueryConnection):
         except Exception as e:
             raise e
 
-    @retry(Exception, tries=4)
-    def delete_object_retry(self, action, params):
+    def delete_object_retry(self, action, params, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         """
         Using retry to deleting disk when disk is 'Initializing'
         """
         done = False
         try:
             while not done:
-                time.sleep(5)
+                time.sleep(delay)
                 try:
                     done = self.get_status(action, params)
                 except ServerException as e:
                     if str(e.error_code) == "IncorrectInstanceStatus.Initializing":
                         continue
 
+                timeout -= delay
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for deleting, time-consuming %d seconds." % timeout)
+
         except Exception as ex:
             raise ex
         return done
 
-    @retry(Exception, tries=3)
-    def verify_join_remove_securitygrp(self, instance_id, group_id, mode):
+    def verify_join_remove_securitygrp(self, instance_id, group_id, mode, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         """
         To verify join & remove operations got performed in security group
         """
@@ -1575,7 +1557,7 @@ class ECSConnection(ACSQueryConnection):
         id_of_instance = [instance_id]
         try:
             while not done:
-                time.sleep(5)
+                time.sleep(delay)
                 instance_list = self.get_all_instances(id_of_instance, None, None)
                 if len(instance_list) > 0:
                     if mode.lower() == 'join':
@@ -1595,6 +1577,10 @@ class ECSConnection(ACSQueryConnection):
                                 if count == 0:
                                     done = True
                                     break
+                timeout -= delay
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for joining or removing security group, time-consuming %d seconds." % timeout)
+
         except Exception as ex:
             raise ex
 

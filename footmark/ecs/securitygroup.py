@@ -46,4 +46,4 @@ class SecurityGroup(TaggedECSObject):
         """
         Terminate the security group
         """
-        rs = self.connection.delete_security_group([self.id])
+        return self.connection.delete_security_group(self.id)
