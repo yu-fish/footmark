@@ -11,6 +11,8 @@ import json
 
 from footmark.connection import ACSQueryConnection
 from footmark.rds.regioninfo import RegionInfo
+from footmark.rds.rds import Account
+from footmark.resultset import ResultSet
 from footmark.exception import RDSResponseError
 
 
@@ -21,7 +23,7 @@ class RDSConnection(ACSQueryConnection):
     ResponseError = RDSResponseError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, sdk_version=None, security_token=None):
+                 region=None, sdk_version=None, security_token=None, user_agent=None):
         """
         Init method to create a new connection to RDS.
         """
@@ -36,7 +38,7 @@ class RDSConnection(ACSQueryConnection):
 
         super(RDSConnection, self).__init__(acs_access_key_id,
                                             acs_secret_access_key,
-                                            self.region, self.RDSSDK, security_token)
+                                            self.region, self.RDSSDK, security_token, user_agent=user_agent)
 
     def create_rds_instance(self, db_engine, engine_version, db_instance_class, db_instance_storage,
                             instance_net_type, security_ip_list, pay_type, period=None,zone=None,
@@ -982,61 +984,7 @@ class RDSConnection(ACSQueryConnection):
                 results.append({"Error Code": error_code, "Error Message": error_msg})
 
         return changed, results
-
-    def create_account(self, db_instance_id, account_name, account_password, description=None, account_type=None):
-        """
-        Create account for database
-        :type db_instance_id: str
-        :param db_instance_id: Id of instance
-        :type account_name: str
-        :param account_name: Operation account requiring a uniqueness check. It may consist of lower case letters,
-        numbers and underlines, and must start with a letter and have no more than 16 characters.
-        :type account_password: str
-        :param account_password: Operation password. It may consist of letters, digits, or underlines,
-        with a length of 6 to 32 characters
-        :type description: str
-        :param description: Account remarks, which cannot exceed 256 characters. NOTE: It cannot begin with http://,
-        https:// . It must start with a Chinese character or English letter. It can include Chinese and English
-        characters/letters, underlines (_), hyphens (-), and numbers. The length may be 2-256 characters
-        :type account_type: str
-        :param account_type: Privilege type of account. Normal: Common privilege;Super: High privilege;
-        Default value is Normal.This parameter is valid for MySQL 5.5/5.6 only.
-        :return: Result dict of operation
-        """
-        params = {}
-        results = []
-        changed = False
-        
-        if db_instance_id:
-            self.build_list_params(params, db_instance_id, 'DBInstanceId')
-
-        if account_name:
-            self.build_list_params(params, account_name, 'AccountName')
-
-        if account_password:
-            self.build_list_params(params, account_password, 'AccountPassword')
-
-        if description:
-            self.build_list_params(params, description, 'AccountDescription')
-
-        if account_type:
-            self.build_list_params(params, account_type, 'AccountType')
-        
-        try:
-            response = self.get_status('CreateAccount', params)
-            results.append(response)
-            changed = True
-        except Exception as ex:
-            if (ex.args is None) or (ex.args == "need more than 2 values to unpack") \
-                    or (ex.message == "need more than 2 values to unpack"):
-                results.append({"Error Message": "The API is showing None error code and error message"})
-            else:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
-
+    
     def reset_instance_password(self, db_instance_id, account_name, account_password):
         """
         Reset instance password
@@ -1131,6 +1079,89 @@ class RDSConnection(ACSQueryConnection):
             results.append({"Error Code": error_code, "Error Message": error_msg})
 
         return changed, results
+    
+    def create_account(self, db_instance_id, account_name, account_password, description=None, account_type=None):
+        """
+        Create account for database
+        :type db_instance_id: str
+        :param db_instance_id: Id of instance
+        :type account_name: str
+        :param account_name: Operation account requiring a uniqueness check. It may consist of lower case letters,
+        numbers and underlines, and must start with a letter and have no more than 16 characters.
+        :type account_password: str
+        :param account_password: Operation password. It may consist of letters, digits, or underlines,
+        with a length of 6 to 32 characters
+        :type description: str
+        :param description: Account remarks, which cannot exceed 256 characters. NOTE: It cannot begin with http://,
+        https:// . It must start with a Chinese character or English letter. It can include Chinese and English
+        characters/letters, underlines (_), hyphens (-), and numbers. The length may be 2-256 characters
+        :type account_type: str
+        :param account_type: Privilege type of account. Normal: Common privilege;Super: High privilege;
+        Default value is Normal.This parameter is valid for MySQL 5.5/5.6 only.
+        :return: Bool
+        """
+        params = {}
+        account_obj = None
+        
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        self.build_list_params(params, account_password, 'AccountPassword')
+        if description:
+            self.build_list_params(params, description, 'AccountDescription')
+        if account_type:
+            self.build_list_params(params, account_type, 'AccountType')
+        self.get_object('CreateAccount', params, ResultSet)
+        if self.wait_for_account_status(db_instance_id, account_name):
+            account_obj = self.list_account(db_instance_id, account_name)[0]
+        return account_obj
+    
+    def wait_for_account_status(self, db_instance_id, account_name, dely_time = 3, timeout = 60, state = "Available"):
+        """
+        Wait for account status
+        :type dely_time: int
+        :param dely_time: The request time interval
+        :type timeout: int
+        :param timeout: overtime time
+        :type state: str
+        :param state: Expected state
+        :return: Bool
+        """
+        assert(dely_time < timeout)
+        account_list = []
+        runing_time = 0
+        result = False
+        while runing_time < timeout:
+            account_list = self.list_account(db_instance_id, account_name)
+            if len(account_list) != 1:
+                time.sleep(dely_time)
+                runing_time = runing_time + dely_time
+                continue
+            if account_list[0].account_status == state:
+                result = True
+                break
+            runing_time = runing_time + dely_time
+            time.sleep(dely_time)    
+        return result
+    
+    def reset_account_password(self, db_instance_id, account_name, account_password):
+        """
+        Reset instance password
+        :type db_instance_id: str
+        :param db_instance_id: Id of instance
+        :type account_name: str
+        :param account_name: Name of an account
+        :type account_password: str
+        :param account_password: A new password. It may consist of letters, numbers, or underlines,
+        with a length of 6 to 32 characters
+        :return: Bool
+        """
+        params = {}
+
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        self.build_list_params(params, account_password, 'AccountPassword')
+        
+        return self.get_status('ResetAccountPassword', params)
 
     def delete_account(self, db_instance_id, account_name):
         """
@@ -1140,31 +1171,34 @@ class RDSConnection(ACSQueryConnection):
         :param db_instance_id: Id of instance
         :type account_name: str
         :param account_name: Name of an account
-        :return: Result dict of operation
+        :return: Bool
         """
         params = {}
-        results = []
-        changed = False
         
-        if db_instance_id:
-            self.build_list_params(params, db_instance_id, 'DBInstanceId')
-        if account_name:
-            self.build_list_params(params, account_name, 'AccountName')
-        try:
-            results = self.get_status('DeleteAccount', params)
-            changed = True
-        except Exception as ex:
-            if (ex.args is None) or (ex.args == "need more than 2 values to unpack") \
-                    or (ex.message == "need more than 2 values to unpack"):
-                results.append({"Error Message": "The API is showing None error code and error message"})
-            else:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})  
-                  
-        return changed, results
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        return self.get_status('DeleteAccount', params)
 
-    def grant_account_permissions(self, db_instance_id, account_name, db_name, account_privilege):
+    def modify_account_description(self, db_instance_id, account_name, description):
+        """
+        modify Account
+
+        :type db_instance_id: str
+        :param db_instance_id: Id of instance
+        :type account_name: str
+        :param account_name: Name of an account
+        :type description: str
+        :param description: description of account
+        :return: Bool
+        """
+        params = {}
+        
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        self.build_list_params(params, description, 'AccountDescription')
+        return self.get_status('ModifyAccountDescription', params)
+
+    def grant_account_privilege(self, db_instance_id, account_name, db_name, account_privilege):
         """
         Grant Account Permissions
 
@@ -1176,35 +1210,17 @@ class RDSConnection(ACSQueryConnection):
         :param db_name: Name of a database.
         :type account_privilege: str
         :param account_privilege: Account permissions
-        :return: Result dict of operation
+        :return: Bool
         """
         params = {}
-        results = []
-        changed = False
         
-        if db_instance_id:
-            self.build_list_params(params, db_instance_id, 'DBInstanceId')
-        if account_name:
-            self.build_list_params(params, account_name, 'AccountName')
-        if db_name:
-            self.build_list_params(params, db_name, 'DBName')
-        if account_privilege:
-            self.build_list_params(params, account_privilege, 'AccountPrivilege')
-        try:
-            results = self.get_status('GrantAccountPrivilege', params)
-            changed = True
-        except Exception as ex:
-            if (ex.args is None) or (ex.args == "need more than 2 values to unpack") \
-                    or (ex.message == "need more than 2 values to unpack"):
-                results.append({"Error Message": "The API is showing None error code and error message"})
-            else:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        self.build_list_params(params, db_name, 'DBName')
+        self.build_list_params(params, account_privilege, 'AccountPrivilege')
+        return self.get_status('GrantAccountPrivilege', params)
 
-        return changed, results
-
-    def revoke_account_permissions(self, db_instance_id, account_name, db_name):
+    def revoke_account_privilege(self, db_instance_id, account_name, db_name):
         """
         Revoke Account Permissions
 
@@ -1214,31 +1230,31 @@ class RDSConnection(ACSQueryConnection):
         :param account_name: Name of an account
         :type db_name: str
         :param db_name: Name of a database.
-        :return: Result dict of operation
+        :return: Bool
         """
         params = {}
         results = []
         changed = False
         
-        if db_instance_id:
-            self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
+        self.build_list_params(params, account_name, 'AccountName')
+        self.build_list_params(params, db_name, 'DBName')
+        return self.get_status('RevokeAccountPrivilege', params)
+
+    def list_account(self, db_instance_id, account_name = None):
+        """
+        Reset account
+        :type db_instance_id: str
+        :param db_instance_id: Id of instance
+        :type account_name: str
+        :param account_name: Name of an account
+        :return: object list of accounts
+        """
+        params = {}
+        self.build_list_params(params, db_instance_id, 'DBInstanceId')
         if account_name:
             self.build_list_params(params, account_name, 'AccountName')
-        if db_name:
-            self.build_list_params(params, db_name, 'DBName')
-        try:
-            results = self.get_status('RevokeAccountPrivilege', params)
-            changed = True
-        except Exception as ex:
-            if (ex.args is None) or (ex.args == "need more than 2 values to unpack") \
-                    or (ex.message == "need more than 2 values to unpack"):
-                results.append({"Error Message": "The API is showing None error code and error message"})
-            else:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
+        return self.get_list('DescribeAccounts', params, ['Accounts', Account])
 
     def switch_between_primary_standby_database(self, instance_id, node_id, force):
         """
