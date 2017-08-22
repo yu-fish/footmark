@@ -196,7 +196,6 @@ class LoadBalancer(TaggedSLBObject):
             return self.load_balancer_id
         if name == 'name':
             return self.load_balancer_name
-        raise AttributeError
 
     def __setattr__(self, name, value):
         if name == 'id':
