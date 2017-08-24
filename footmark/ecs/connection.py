@@ -20,6 +20,7 @@ from functools import wraps
 from footmark.resultset import ResultSet
 # from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import t import
 from aliyunsdkcore.acs_exception.exceptions import ServerException
+# from aliyunsdkecs.request.v20140526.AttachInstanceRamRoleRequest import
 
 
 class ECSConnection(ACSQueryConnection):
@@ -77,9 +78,20 @@ class ECSConnection(ACSQueryConnection):
 
             self.build_filters_params(params, value)
 
+    def build_tags_params(self, params, tags, max_tag_number=None):
+        tag_no = 1
+        if tags:
+            for key, value in tags.items():
+                if tag_no > max_tag_number:
+                    break
+                if key:
+                    self.build_list_params(params, key, 'Tag' + str(tag_no) + 'Key')
+                    self.build_list_params(params, value, 'Tag' + str(tag_no) + 'Value')
+                    tag_no += 1
+
     # Instance methods
 
-    def get_all_instances(self, zone_id=None, instance_ids=None, instance_name=None, filters=None, pagenumber=1, pagesize=100):
+    def get_all_instances(self, zone_id=None, instance_ids=None, instance_name=None, instance_tags=None, pagenumber=1, pagesize=100):
         """
         Retrieve all the instance associated with your account. 
 
@@ -99,8 +111,8 @@ class ECSConnection(ACSQueryConnection):
                 self.build_list_params(params, instance_ids, 'InstanceIds')
             if instance_name:
                 self.build_list_params(params, instance_name, 'InstanceName')
-            if filters:
-                self.build_filter_params(params, filters)
+            if instance_tags:
+                self.build_tags_params(params, instance_tags, max_tag_number=5)
 
             self.build_list_params(params, pagesize, 'PageSize')
 
@@ -525,17 +537,16 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, auto_renew_period, 'AutoRenewPeriod')
 
         # Instance Tags
-        tag_no = 1
-        if instance_tags:
-            for instance_tag in instance_tags:
-                if instance_tag:
-                    if 'tag_key' and 'tag_value' in instance_tag:
-                        if (instance_tag['tag_key'] is not None) and (instance_tag['tag_value'] is not None):
-                            self.build_list_params(params, instance_tag[
-                                'tag_key'], 'Tag' + str(tag_no) + 'Key')
-                            self.build_list_params(params, instance_tag[
-                                'tag_value'], 'Tag' + str(tag_no) + 'Value')
-                            tag_no += 1
+        # tag_no = 1
+        # if instance_tags:
+        #     for key, value in instance_tags.items():
+        #         if key:
+        #             self.build_list_params(params, key, 'Tag' + str(tag_no) + 'Key')
+        #             self.build_list_params(params, value, 'Tag' + str(tag_no) + 'Value')
+        #             tag_no += 1
+        #         if tag_no > 5:
+        #             break
+        self.build_tags_params(params, instance_tags, max_tag_number=5)
 
         instances = []
 
@@ -576,7 +587,6 @@ class ECSConnection(ACSQueryConnection):
         :param password: Instance Password
         :return: A list of the instance_ids modified
         """
-        results = []
         changed = False
         params = {}
 
@@ -591,12 +601,12 @@ class ECSConnection(ACSQueryConnection):
 
         for id in instance_ids:
             self.build_list_params(params, id, 'InstanceId')
-            self.get_status('ModifyInstanceAttribute', params)
-            if password:
-                self.reboot_instances([id])
-            results.append(id)
+            changed = self.get_status('ModifyInstanceAttribute', params)
+            # if password:
+            #     self.reboot_instances([id])
+            # results.append(id)
 
-        return results
+        return changed
 
     def get_instance_status(self, zone_id=None, pagenumber=None, pagesize=None):
         """
@@ -1490,15 +1500,16 @@ class ECSConnection(ACSQueryConnection):
         """
         To verify instance status has become expected
         """
+        tm = timeout
         try:
             while True:
                 instance = self.get_instance_details(instance_id)
                 if instance and str(instance.status).lower() in [status, str(status).lower()]:
                     return True
 
-                timeout -= delay
+                tm -= delay
 
-                if timeout <= 0:
+                if tm <= 0:
                     raise Exception("Timeout Error: Waiting for Disk status is %s, time-consuming %d seconds." % (status, timeout))
 
                 time.sleep(delay)
@@ -1510,15 +1521,16 @@ class ECSConnection(ACSQueryConnection):
         """
         To verify disk status has become expected after attaching or detaching disk
         """
+        tm = timeout
         try:
             while True:
                 volume = self.get_volume_attribute(disk_id)
                 if volume and str(volume.status).lower() in [status, str(status).lower()]:
                     return True
 
-                timeout -= delay
+                tm -= delay
 
-                if timeout <= 0:
+                if tm <= 0:
                     raise Exception("Timeout Error: Waiting for Disk status is %s, time-consuming %d seconds." % (status, timeout))
 
                 time.sleep(delay)
@@ -1555,6 +1567,7 @@ class ECSConnection(ACSQueryConnection):
         done = False
         count = 0
         id_of_instance = [instance_id]
+        tm = timeout
         try:
             while not done:
                 time.sleep(delay)
@@ -1577,8 +1590,8 @@ class ECSConnection(ACSQueryConnection):
                                 if count == 0:
                                     done = True
                                     break
-                timeout -= delay
-                if timeout <= 0:
+                tm -= delay
+                if tm <= 0:
                     raise Exception("Timeout Error: Waiting for joining or removing security group, time-consuming %d seconds." % timeout)
 
         except Exception as ex:
