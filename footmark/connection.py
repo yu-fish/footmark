@@ -1,5 +1,6 @@
 # coding:utf-8
 import sys
+import time
 
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -97,6 +98,20 @@ class ACSQueryConnection(ACSAuthConnection):
                         getattr(request, k)(v)
                     else:
                         request.add_query_param(k[4:], v)
+        timeout = 200
+        delay = 3
+        while timeout > 0:
+            try:
+                return conn.do_action_with_exception(request)
+            except Exception as e:
+                if str(e.error_code) == "SDK.ServerUnreachable"\
+                        or str(e.message).__contains__("SDK.ServerUnreachable")\
+                        or str(e.message).__contains__("Unable to connect server: timed out"):
+                    time.sleep(delay)
+                    timeout -= delay
+                    continue
+                raise e
+
         return conn.do_action_with_exception(request)
 
     def build_list_params(self, params, items, label):
