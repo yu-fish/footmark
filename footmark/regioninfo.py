@@ -128,27 +128,22 @@ class RegionInfo(object):
     """
     Represents an Aliyun Region
     """
-
-    def __init__(self, connection=None, name=None, id=None,
-                 connection_cls=None):
+    def __init__(self, connection=None, region=None, local_name=None, connection_cls=None):
         self.connection = connection
-        self.name = name
-        self.id = id
         self.connection_cls = connection_cls
+        self.region_id = region
+        self.local_name = local_name
 
     def __repr__(self):
-        return 'RegionInfo:%s' % self.name
+        return 'RegionInfo:%s' % self.id
 
-    def startElement(self, name, attrs, connection):
-        return None
+    def __getattr__(self, name):
+        if name == 'id':
+            return self.region_id
+        if name in ('name', 'region_name'):
+            return self.local_name
 
-    def endElement(self, name, value, connection):
-        if name == 'LocalName':
-            self.name = value
-        elif name == 'RegionId':
-            self.id = value
-        else:
-            setattr(self, name, value)
+        raise AttributeError("Object {0} does not have attribute {1}".format(self.__repr__(), name))
 
     def connect(self, **kw_params):
         """

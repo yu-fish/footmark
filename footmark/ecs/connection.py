@@ -11,16 +11,17 @@ import json
 import logging
 from footmark.ecs.config import *
 from footmark.connection import ACSQueryConnection
-from footmark.ecs.instance import Instance
 from footmark.ecs.regioninfo import RegionInfo
+from footmark.ecs.instance import Instance
 from footmark.ecs.securitygroup import SecurityGroup
 from footmark.ecs.volume import Disk
 from footmark.exception import ECSResponseError
 from functools import wraps
 from footmark.resultset import ResultSet
-# from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import t import
 from aliyunsdkcore.acs_exception.exceptions import ServerException
-# from aliyunsdkecs.request.v20140526.AttachInstanceRamRoleRequest import
+# from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import t import
+# from aliyunsdkcore.auth.composer.rpc_signature_composer import ServerException
+# from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import
 
 
 class ECSConnection(ACSQueryConnection):
@@ -35,8 +36,9 @@ class ECSConnection(ACSQueryConnection):
         Init method to create a new connection to ECS.
         """
         if not region:
-            region = RegionInfo(self, self.DefaultRegionName,
-                                self.DefaultRegionId)
+            # region = RegionInfo(self, self.DefaultRegionName,
+            #                     self.DefaultRegionId)
+            region = self.DefaultRegionId
         self.region = region
         if sdk_version:
             self.SDKVersion = sdk_version
@@ -91,7 +93,12 @@ class ECSConnection(ACSQueryConnection):
 
     # Instance methods
 
-    def get_all_instances(self, zone_id=None, instance_ids=None, instance_name=None, instance_tags=None, pagenumber=1, pagesize=100):
+    def get_all_instances(self, zone_id=None, instance_ids=None, instance_name=None, instance_tags=None,
+                          vpc_id=None, vswitch_id=None, instance_type=None, instance_type_family=None,
+                          instance_network_type=None, private_ip_addresses=None, inner_ip_addresses=None,
+                          public_ip_addresses=None, security_group_id=None, instance_charge_type=None,
+                          spot_strategy=None, internet_charge_type=None, image_id=None, status=None,
+                          io_optimized=None, pagenumber=None, pagesize=100):
         """
         Retrieve all the instance associated with your account. 
 
@@ -113,11 +120,42 @@ class ECSConnection(ACSQueryConnection):
                 self.build_list_params(params, instance_name, 'InstanceName')
             if instance_tags:
                 self.build_tags_params(params, instance_tags, max_tag_number=5)
+            if vpc_id:
+                self.build_list_params(params, vpc_id, 'VpcId')
+            if vswitch_id:
+                self.build_list_params(params, vswitch_id, 'VSwitchId')
+            if instance_type:
+                self.build_list_params(params, instance_type, 'InstanceType')
+            if instance_type_family:
+                self.build_list_params(params, instance_type_family, 'InstanceTypeFamily')
+            if instance_network_type:
+                self.build_list_params(params, instance_network_type, 'InstanceNetworkType')
+            if private_ip_addresses:
+                self.build_list_params(params, private_ip_addresses, 'PrivateIpAddresses')
+            if inner_ip_addresses:
+                self.build_list_params(params, inner_ip_addresses, 'InnerIpAddresses')
+            if public_ip_addresses:
+                self.build_list_params(params, public_ip_addresses, 'PublicIpAddresses')
+            if security_group_id:
+                self.build_list_params(params, security_group_id, 'SecurityGroupId')
+            if spot_strategy:
+                self.build_list_params(params, spot_strategy, 'SpotStrategy')
+            if instance_charge_type:
+                self.build_list_params(params, instance_charge_type, 'InstanceChargeType')
+            if internet_charge_type:
+                self.build_list_params(params, internet_charge_type, 'InternetChargeType')
+            if image_id:
+                self.build_list_params(params, image_id, 'ImageId')
+            if io_optimized:
+                self.build_list_params(params, io_optimized, 'IoOptimized')
 
             self.build_list_params(params, pagesize, 'PageSize')
 
+            pNum = pagenumber
+            if not pNum:
+                pNum = 1
             while True:
-                self.build_list_params(params, pagenumber, 'PageNumber')
+                self.build_list_params(params, pNum, 'PageNumber')
                 instance_list = self.get_list('DescribeInstances', params, ['Instances', Instance])
                 for inst in instance_list:
                     filters = {}
@@ -134,12 +172,10 @@ class ECSConnection(ACSQueryConnection):
                             security_groups = self.get_all_security_groups(group_ids=group_ids)
                             setattr(inst, 'security_groups', security_groups)
                     instances.append(inst)
-                if len(instance_list) < pagesize:
+                if pagenumber or len(instance_list) < pagesize:
                     break
-                pagenumber += 1
+                pNum += 1
 
-        except ServerException as e:
-            raise e
         except Exception as e:
             raise e
 
@@ -190,7 +226,7 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.get_status('StartInstance', params):
+                if self.get_status('StartInstance', params) and self.wait_for_instance_status(instance_id, "Running", delay=5, timeout=DefaultTimeOut):
                     results.append(instance_id)
         return results
 
@@ -322,7 +358,7 @@ class ECSConnection(ACSQueryConnection):
                         host_name=None, password=None, io_optimized='optimized', system_disk_category=None, system_disk_size=None,
                         system_disk_name=None, system_disk_description=None, disks=None, vswitch_id=None, private_ip=None,
                         count=None, allocate_public_ip=None, instance_charge_type=None, period=None,
-                        auto_renew=None, auto_renew_period=None, instance_tags=None):
+                        auto_renew=None, auto_renew_period=None, instance_tags=None, client_token=None):
         """
         create an instance in ecs
 
@@ -548,10 +584,15 @@ class ECSConnection(ACSQueryConnection):
         #             break
         self.build_tags_params(params, instance_tags, max_tag_number=5)
 
+        if allocate_public_ip and not max_bandwidth_out:
+            raise ECSResponseError(error={"message":"The max_bandwidth_out of the specified instance cannot be "
+                                                    "less than 0 when allocating public ip"})
         instances = []
 
         for i in range(count):
             # CreateInstance method call, returns newly created instanceId
+            if client_token:
+                self.build_list_params(params, "%s-%d" % (client_token, i), 'ClientToken')
             result = self.get_object('CreateInstance', params, ResultSet)
             instance_id = result.instance_id
 
@@ -1598,4 +1639,8 @@ class ECSConnection(ACSQueryConnection):
             raise ex
 
         return done
+
+    def get_all_regions(self):
+        all_regions = self.get_list('DescribeRegions', None, ['Regions', RegionInfo])
+        return all_regions
 
