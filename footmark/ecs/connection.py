@@ -736,7 +736,7 @@ class ECSConnection(ACSQueryConnection):
         # Method Call, to perform adding action
         return self.get_status('LeaveSecurityGroup', params)
 
-    def create_security_group(self, group_name=None, description=None, group_tags=None, vpc_id=None):
+    def create_security_group(self, group_name=None, description=None, group_tags=None, vpc_id=None, client_token=None):
         """
         create and authorize security group in ecs
 
@@ -774,6 +774,9 @@ class ECSConnection(ACSQueryConnection):
 
         # Security Group Description
         self.build_list_params(params, description, 'Description')
+
+        if client_token:
+            self.build_list_params(params, client_token, 'ClientToken')
 
         # Instance Tags
         tagno = 1
@@ -1012,7 +1015,7 @@ class ECSConnection(ACSQueryConnection):
 
     def create_disk(self, zone_id, disk_name=None, description=None,
                     disk_category=None, size=None, disk_tags=None,
-                    snapshot_id=None):
+                    snapshot_id=None, client_token=None):
         """
         create an disk in ecs
 
@@ -1093,6 +1096,9 @@ class ECSConnection(ACSQueryConnection):
                             # Snapshot Id
         if snapshot_id:
             self.build_list_params(params, snapshot_id, 'SnapshotId')
+
+        if client_token:
+            self.build_list_params(params, client_token, 'ClientToken')
 
         rs = self.get_object('CreateDisk', params, ResultSet)
 
