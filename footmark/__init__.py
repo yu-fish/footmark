@@ -5,7 +5,7 @@ import os
 
 from footmark.pyami.config import Config, FootmarkLoggingConfig, DefaultLoggingConfig
 
-__version__ = '1.1.11'
+__version__ = '1.1.12'
 Version = __version__  # for backware compatibility
 
 
@@ -67,3 +67,13 @@ def connect_vpc(acs_access_key_id=None, acs_secret_access_key=None, **kwargs):
     from footmark.vpc.connection import VPCConnection
     return VPCConnection(acs_access_key_id, acs_secret_access_key, **kwargs)
 
+
+def get_all_regions(connect_args):
+    from footmark.connection import ACSQueryConnection
+    from footmark.regioninfo import RegionInfo
+    conn = ACSQueryConnection(acs_access_key_id=connect_args['acs_access_key_id'],
+                              acs_secret_access_key=connect_args['acs_secret_access_key'],
+                              region="cn-hangzhou", product=None,
+                              security_token=connect_args['security_token'],
+                              user_agent=connect_args['user_agent'])
+    return conn.get_list('DescribeRegions', None, ['Regions', RegionInfo])

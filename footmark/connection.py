@@ -13,7 +13,10 @@ import importlib
 from footmark.exception import FootmarkServerError
 from footmark.provider import Provider
 import json
+import yaml
 from footmark.resultset import ResultSet
+
+from pprint import pprint
 
 from aliyunsdkcore import client
 from aliyunsdkcore.acs_exception.exceptions import ServerException
@@ -88,38 +91,38 @@ class ACSQueryConnection(ACSAuthConnection):
         if not conn:
             footmark.log.error('%s %s' % ('Null AcsClient ', conn))
             raise self.FootmarkClientError('Null AcsClient ', conn)
-        if action:
-            module = importlib.import_module(self.product + '.' + action + 'Request')
-            request = getattr(module, action + 'Request')()
-            request.set_accept_format('json')
-            if params and isinstance(params, dict):
-                for k, v in params.items():
-                    if hasattr(request, k):
-                        getattr(request, k)(v)
-                    else:
-                        request.add_query_param(k[4:], v)
+
         timeout = 200
         delay = 3
         while timeout > 0:
             try:
+                target = importlib.import_module(self.product + '.' + action + 'Request')
+                request = getattr(target, action + 'Request')()
+                request.set_accept_format('json')
+                if params and isinstance(params, dict):
+                    for k, v in params.items():
+                        if hasattr(request, k):
+                            getattr(request, k)(v)
+                        else:
+                            request.add_query_param(k[4:], v)
                 return conn.do_action_with_exception(request)
             except Exception as e:
-                if str(e.error_code) == "SDK.ServerUnreachable"\
-                        or str(e.message).__contains__("SDK.ServerUnreachable")\
+                if str(e.error_code) == "SDK.ServerUnreachable" \
+                        or str(e.message).__contains__("SDK.ServerUnreachable") \
                         or str(e.message).__contains__("Unable to connect server: timed out"):
                     time.sleep(delay)
                     timeout -= delay
                     continue
                 raise e
 
-        return conn.do_action_with_exception(request)
+        return None
 
     def build_list_params(self, params, items, label):
-        params['set_%s' % label] = items
+        params['set_%s' % label] = str(items).strip()
 
     def parse_response(self, markers, body, connection):
         results = []
-        body = json.loads(body, encoding='UTF-8')
+        body = yaml.safe_load(body)
         if not markers:
             markers = ["", ResultSet]
 
