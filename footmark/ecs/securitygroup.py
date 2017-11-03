@@ -1,12 +1,11 @@
 """
 Represents an ECS Security Group
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class SecurityGroup(TaggedECSObject):
-    def __init__(self, connection=None, owner_id=None,
-                 name=None, description=None, id=None):
+    def __init__(self, connection=None):
         super(SecurityGroup, self).__init__(connection)
         self.tags = {}
 
@@ -20,6 +19,8 @@ class SecurityGroup(TaggedECSObject):
             return self.security_group_name
         if name.startswith('group'):
             return getattr(self, 'security_' + name)
+        if name == 'rules':
+            return getattr(self, 'permissions')
         raise AttributeError
 
     def __setattr__(self, name, value):
@@ -28,10 +29,21 @@ class SecurityGroup(TaggedECSObject):
         if name == 'name':
             self.security_group_name = value
         if name.startswith('group'):
-            return setattr(self, 'security_' + name, value)
+            setattr(self, 'security_' + name, value)
+        if name == "permissions":
+            if value and 'permission' in value:
+                value = value.get('permission')
+        if name == "rules":
+            setattr(self, 'permissions', value)
         if name == 'tags' and value:
             v = {}
             for tag in value['tag']:
                 v[tag.get('TagKey')] = tag.get('TagValue', None)
             value = v
         super(TaggedECSObject, self).__setattr__(name, value)
+
+    def delete(self):
+        """
+        Terminate the security group
+        """
+        return self.connection.delete_security_group(self.id)

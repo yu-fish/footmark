@@ -52,7 +52,6 @@ format=%(asctime)s [%(levelname)s] %(filename)s, %(funcName)s[%(lineno)d]: %(mes
 # Default logging configurations.
 # By default we use location /var/footmark/ for the footmark logs.
 LoggingDict = '/var/log/footmark/'
-# LoggingDict = './'
 DefaultLoggingConfig = {
     'version': 1,
     'formatters': {

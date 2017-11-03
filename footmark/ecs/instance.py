@@ -1,7 +1,7 @@
 """
 Represents an ECS Instance
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class Instance(TaggedECSObject):
@@ -19,46 +19,60 @@ class Instance(TaggedECSObject):
     def __getattr__(self, name):
         if name == 'id':
             return self.instance_id
+        if name == 'name':
+            return self.instance_name
         if name == 'state':
             return self.status
-        if name in ('private_ip', 'inner_ip', 'inner_ip_address'):
-            return self.inner_ip_address
-        if name in ('public_ip', 'assign_public_ip'):
-            return self.public_ip_address
-        if name == 'vpc_private_ip':
-            return self.private_ip_address
+        if name in ('inner_ip', 'inner_ip_address'):
+            return self.inner_ip_address['ip_address'][0]
+        if name in ('public_ip', 'assign_public_ip', 'public_ip_address'):
+                return self.public_ip_address['ip_address'][0]
+        if name in ('private_ip', 'private_ip_address', 'vpc_private_ip', 'vpc_private_ip_address'):
+            return self.vpc_attributes['private_ip_address']['ip_address'][0]
         if name in ('vpc_vswitch_id', 'vswitch_id', 'vpc_subnet_id', 'subnet_id'):
-            return self.v_switch_id
-        if name == 'eip' and self.eip_address:
-            return self.eip_address.get('ip_address', None)
+            return self.vpc_attributes['vswitch_id']
+        if name == 'vpc_id':
+            return self.vpc_attributes['vpc_id']
+        if name in ('eip', 'eip_address', 'elastic_ip_address'):
+            return self.eip_address['ip_address']
         if name in ('group_id', 'security_group_id'):
             return self.security_group_id
         if name in ('group_name', 'security_group_name') and self.security_groups:
             return self.security_groups[0].security_group_name
         if name == 'groups':
             return self.security_groups
-        raise AttributeError
+        raise AttributeError("Object {0} does not have attribute {1}".format(self.__repr__(), name))
 
     def __setattr__(self, name, value):
         if name == 'id':
             self.instance_id = value
+        if name == 'name':
+            self.instance_name = value
         if name == 'status':
             value = value.lower()
         if name == 'state':
             self.status = value
         if name in ('public_ip_address', 'inner_ip_address', 'private_ip_address'):
-            if isinstance(value, dict) and value['ip_address']:
-                value = value['ip_address'][0]
-        if name in ('private_ip', 'inner_ip'):
+            if isinstance(value, dict):
+                if value['ip_address']:
+                    value = value['ip_address'][0]
+                else:
+                    value = None
+        if name  == 'eip_address' and isinstance(value, dict) and value['ip_address']:
+            value = value['ip_address']
+        if name == 'inner_ip':
             self.inner_ip_address = value
         if name in ('public_ip', 'assign_public_ip'):
             self.public_ip_address = value
-        if name == 'vpc_private_ip':
+        if name in ('private_ip', 'vpc_private_ip', 'vpc_private_ip_address'):
+            self.vpc_attributes['private_ip_address'] = value
             self.private_ip_address = value
         if name in ('vpc_vswitch_id', 'vswitch_id', 'vpc_subnet_id', 'subnet_id'):
-            self.v_switch_id = value
-        if name == 'eip' and self.eip_address:
-            self.eip_address['ip_address'] = value
+            self.vpc_attributes['vswitch_id'] = value
+        if name == 'vpc_id':
+            self.vpc_attributes['vpc_id'] = value
+        if name in ('eip', 'elastic_ip_address'):
+            self.eip_address = value
         if name in ('group_id', 'security_group_id'):
             if isinstance(value, list) and value:
                 value = value[0]
@@ -69,7 +83,8 @@ class Instance(TaggedECSObject):
         if name == 'tags' and value:
             v = {}
             for tag in value['tag']:
-                v[tag.get('TagKey')] = tag.get('TagValue', None)
+                if tag.get('tag_key'):
+                    v[tag.get('tag_key')] = tag.get('tag_value', None)
             value = v
         super(TaggedECSObject, self).__setattr__(name, value)
 
@@ -124,6 +139,22 @@ class Instance(TaggedECSObject):
         """
         return self.connection.reboot_instances([self.id], force)
 
+    def modify(self, name=None, description=None, host_name=None, password=None):
+        """
+        Modify the instance.
+
+        :type name: str
+        :param name: Instance Name
+        :type description: str
+        :param description: Instance Description
+        :type host_name: str
+        :param host_name: Instance Host Name
+        :type password: str
+        :param password: Instance Password
+        """
+        return self.connection.modify_instances([self.id], name=name, description=description,
+                                                host_name=host_name, password=password)
+
     def terminate(self, force=False):
         """
         Terminate the instance
@@ -132,3 +163,21 @@ class Instance(TaggedECSObject):
         :param force: Forces the instance to terminate
         """
         rs = self.connection.terminate_instances([self.id], force)
+
+    def join_security_group(self, security_group_id):
+        """
+        Join one security group
+
+        :type security_group_id: str
+        :param security_group_id: The Security Group ID.
+        """
+        rs = self.connection.join_security_group(self.id, security_group_id)
+
+    def leave_security_group(self, security_group_id):
+        """
+        Leave one security group
+
+        :type security_group_id: str
+        :param security_group_id: The Security Group ID.
+        """
+        rs = self.connection.leave_security_group(self.id, security_group_id)

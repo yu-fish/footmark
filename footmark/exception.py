@@ -6,10 +6,8 @@ import json
 
 import footmark
 
-StandardError = Exception
 
-
-class FootmarkClientError(StandardError):
+class FootmarkClientError(Exception):
     """
     General Footmark Client error (error accessing Aliyun)
     """
@@ -25,41 +23,39 @@ class FootmarkClientError(StandardError):
         return 'FootmarkClientError: %s' % self.reason
 
 
-class FootmarkServerError(StandardError):
-    def __init__(self, status, body=None, *args):
-        super(FootmarkServerError, self).__init__(status, body, *args)
-        self.status = status
-        self.body = body or ''
+class FootmarkServerError(Exception):
+    def __init__(self, error=None, *args):
+        Exception.__init__(self, error, *args)
+        self.error = error
         self.request_id = None
         self.error_code = None
         self.message = ''
-        self.host_id = None
-        if isinstance(self.body, bytes):
+        self.http_status = ''
+        if isinstance(self.error, bytes):
             try:
-                self.body = self.body.decode('utf-8')
+                self.error = error.decode('utf-8')
             except UnicodeDecodeError:
-                footmark.log.debug('Unable to decode body from bytes!')
+                footmark.log.debug('Unable to decode error from bytes!')
 
         # Attempt to parse the error response. If body isn't present,
         # then just ignore the error response.
         try:
-            parsed = json.loads(self.body)
-
-            if 'RequestId' in parsed:
-                self.request_id = parsed['RequestId']
-            if 'Code' in parsed:
-                self.error_code = parsed['Code']
-            if 'Message' in parsed:
-                self.message = parsed['Message']
-            if 'HostId' in parsed:
-                self.host_id = parsed['HostId']
+            parsed = json.loads(self.error)
+            if 'request_id' in parsed:
+                self.request_id = parsed['request_id']
+            if 'error_code' in parsed:
+                self.error_code = parsed['error_code']
+            if 'message' in parsed:
+                self.message = parsed['message']
+            if 'http_status' in parsed:
+                self.http_status = parsed['http_status']
 
         except (TypeError, ValueError):
             # Remove unparsable message body so we don't include garbage
             # in exception. But first, save self.body in self.error_message
             # because occasionally we get error messages from Eucalyptus
             # that are just text strings that we want to preserve.
-            self.message = self.body
+            self.message = self.error
             self.body = None
 
     def __getattr__(self, name):
@@ -67,21 +63,24 @@ class FootmarkServerError(StandardError):
             return self.message
         if name == 'code':
             return self.error_code
+        if name == 'status':
+            return self.http_status
         raise AttributeError
 
     def __setattr__(self, name, value):
         if name == 'error_message':
             self.message = value
-        else:
-            super(FootmarkServerError, self).__setattr__(name, value)
+        if name == 'status':
+            self.http_status = value
+        super(FootmarkServerError, self).__setattr__(name, value)
 
     def __repr__(self):
-        return '%s: %s %s\n%s' % (self.__class__.__name__,
-                                  self.status, self.message, self.body)
+        return '%s: %s, %s,\n%s' % (self.__class__.__name__,
+                                  self.status, self.message, self.request_id)
 
     def __str__(self):
-        return '%s: %s %s\n%s' % (self.__class__.__name__,
-                                  self.status, self.message, self.body)
+        return '%s: %s, %s,\n%s' % (self.__class__.__name__,
+                                  self.status, self.message, self.request_id)
 
 
 class ECSResponseError(FootmarkServerError):
@@ -89,8 +88,8 @@ class ECSResponseError(FootmarkServerError):
     Error in response from ECS.
     """
 
-    def __init__(self, status, body=None):
-        super(ECSResponseError, self).__init__(status, body)
+    def __init__(self, error=None):
+        super(ECSResponseError, self).__init__(error)
 
 
 class VPCResponseError(FootmarkServerError):
@@ -109,6 +108,24 @@ class SLBResponseError(FootmarkServerError):
 
     def __init__(self, status, body=None):
         super(SLBResponseError, self).__init__(status, body)
+
+
+class RDSResponseError(FootmarkServerError):
+    """
+    Error in response from RDS.
+    """
+
+    def __init__(self, status, body=None):
+        super(RDSResponseError, self).__init__(status, body)
+
+
+class OSSResponseError(FootmarkServerError):
+    """
+    Error in response from OSS.
+    """
+
+    def __init__(self, status, body=None):
+        super(OSSResponseError, self).__init__(status, body)
 
 
 class JSONResponseError(FootmarkServerError):

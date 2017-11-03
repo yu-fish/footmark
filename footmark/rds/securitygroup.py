@@ -1,10 +1,10 @@
 """
-Represents an VPC Security Group
+Represents an RDS Security Group
 """
-from footmark.vpc.vpcobject import *
+from footmark.rds.rdsobject import TaggedRDSObject
 
 
-class SecurityGroup(TaggedVPCObject):
+class SecurityGroup(TaggedRDSObject):
     def __init__(self, connection=None, owner_id=None,
                  name=None, description=None, id=None):
         super(SecurityGroup, self).__init__(connection)
@@ -34,4 +34,4 @@ class SecurityGroup(TaggedVPCObject):
             for tag in value['tag']:
                 v[tag.get('TagKey')] = tag.get('TagValue', None)
             value = v
-        super(TaggedVPCObject, self).__setattr__(name, value)
+        super(TaggedRDSObject, self).__setattr__(name, value)

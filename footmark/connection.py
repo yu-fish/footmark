@@ -1,5 +1,6 @@
 # coding:utf-8
 import sys
+import time
 
 reload(sys)
 sys.setdefaultencoding("utf-8")
@@ -12,15 +13,18 @@ import importlib
 from footmark.exception import FootmarkServerError
 from footmark.provider import Provider
 import json
+import yaml
+from footmark.resultset import ResultSet
+
+from pprint import pprint
 
 from aliyunsdkcore import client
+from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
 class ACSAuthConnection(object):
-    def __init__(self, acs_access_key_id=None,
-                 acs_secret_access_key=None,
-                 region=None,
-                 provider='acs', security_token=None):
+    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
+                 region=None, provider='acs', security_token=None, user_agent=None):
         """
         :keyword str acs_access_key_id: Your ACS Access Key ID (provided by
             Alicloud). If none is specified, the value in your
@@ -37,6 +41,7 @@ class ACSAuthConnection(object):
 
         """
         self.region = region
+        self.user_agent = user_agent
         if isinstance(provider, Provider):
             # Allow overriding Provider
             self.provider = provider
@@ -66,100 +71,165 @@ class ACSAuthConnection(object):
 class ACSQueryConnection(ACSAuthConnection):
     ResponseError = FootmarkServerError
 
-    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, product=None, security_token=None, provider='acs'):
+    def __init__(self, acs_access_key_id=None, acs_secret_access_key=None, region=None,
+                 product=None, security_token=None, provider='acs',
+                 user_agent='Alicloud-Footmark-v'+footmark.__version__):
+
         super(ACSQueryConnection, self).__init__(
             acs_access_key_id,
             acs_secret_access_key,
             region=region,
             security_token=security_token,
-            provider=provider)
+            provider=provider,
+            user_agent=user_agent)
 
         self.product = product
+        self.user_agent = user_agent
 
     def make_request(self, action, params=None):
-        conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region)
+        conn = client.AcsClient(self.acs_access_key_id, self.acs_secret_access_key, self.region, user_agent=self.user_agent)
         if not conn:
             footmark.log.error('%s %s' % ('Null AcsClient ', conn))
             raise self.FootmarkClientError('Null AcsClient ', conn)
-        if action:
-            module = importlib.import_module(self.product + '.' + action + 'Request')
-            request = getattr(module, action + 'Request')()
-            request.set_accept_format('json')
-            if params and isinstance(params, dict):
-                for k, v in params.items():
-                    if hasattr(request, k):
-                        getattr(request, k)(v)
-                    else:
-                        request.add_query_param(k[4:], v)
-        return conn.get_response(request)
+
+        timeout = 200
+        delay = 3
+        while timeout > 0:
+            try:
+                target = importlib.import_module(self.product + '.' + action + 'Request')
+                request = getattr(target, action + 'Request')()
+                request.set_accept_format('json')
+                if params and isinstance(params, dict):
+                    for k, v in params.items():
+                        if hasattr(request, k):
+                            getattr(request, k)(v)
+                        else:
+                            request.add_query_param(k[4:], v)
+                return conn.do_action_with_exception(request)
+            except Exception as e:
+                if str(e.error_code) == "SDK.ServerUnreachable" \
+                        or str(e.message).__contains__("SDK.ServerUnreachable") \
+                        or str(e.message).__contains__("Unable to connect server: timed out"):
+                    time.sleep(delay)
+                    timeout -= delay
+                    continue
+                raise e
+
+        return None
 
     def build_list_params(self, params, items, label):
-        params['set_%s' % label] = items
+        params['set_%s' % label] = str(items).strip()
 
-    def parse_response(self, markers, response, connection):
+    def parse_response(self, markers, body, connection):
         results = []
-        response = json.loads(response, encoding='UTF-8')
-        if markers and markers[0] in response:
-            for value in response[markers[0]].itervalues():
-                if value is None or len(value) < 1:
-                    return results
-                for item in value:
+        body = yaml.safe_load(body)
+        if not markers:
+            markers = ["", ResultSet]
+
+        result_set = ResultSet
+        if not markers[0] and markers[1] is not ResultSet:
+            result_set = markers[1](connection)
+
+        for key, value in body.items():
+            self.parse_value(value)
+            setattr(result_set, self.convert_name(key), value)
+
+        if markers[0] and markers[0] in body:
+            for value in getattr(result_set, self.convert_name(markers[0])).itervalues():
+                if isinstance(value, list):
+                    for sub_value in value:
+                        element = markers[1](connection)
+                        for k, v in sub_value.items():
+                            setattr(element, k, v)
+                        results.append(element)
+                elif isinstance(value, dict):
                     element = markers[1](connection)
-                    self.parse_dict(element, item)
+                    for k, v in value.items():
+                        setattr(element, k, v)
                     results.append(element)
-        return results
+                else:
+                    element = markers[1](connection)
+                    setattr(element, k, v)
+                    results.append(element)
+            return results
+        return result_set
 
-    def parse_dict(self, element, dict_data):
-        if not isinstance(dict_data, dict):
-            return
-
-        for k, v in dict_data.items():
-            if isinstance(v, dict):
-                value = {}
-                for kk, vv in v.items():
-                    value[self.convert_name(kk)] = vv
-                v = value
-                self.parse_dict(element, v)
-            setattr(element, self.convert_name(k), v)
+    def parse_value(self, value):
+        if isinstance(value, list):
+            for item in value:
+                self.parse_value(item)
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if isinstance(v, dict) or isinstance(v, list):
+                    self.parse_value(v)
+                else:
+                    value.pop(k)
+                    value[self.convert_name(k)] = v
+            for k, v in value.items():
+                value.pop(k)
+                value[self.convert_name(k)] = v
+        # setattr(element, self.convert_name(key), value)
+        return
 
     def convert_name(self, name):
         if name:
             new_name = ''
+            tmp = ''
             for ch in name:
                 if ch.isupper():
-                    ch = '_' + ch.lower()
+                    tmp += ch
+                    continue
+                if tmp:
+                    ch = '_' + tmp.lower() + ch
+                    tmp = ''
                 new_name += ch
+            if tmp:
+                new_name += '_' + tmp.lower()
             if new_name.startswith('_'):
                 new_name = new_name[1:]
+
             return new_name
 
     # generics
-
     def get_list(self, action, params, markers):
-        response = self.make_request(action, params)
-        body = response[-1]
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            footmark.log.info('status= %s ; body= %s' % (response[0], body))
+        try:
+            body = self.make_request(action, params)
+            footmark.log.debug('body= %s' % body)
             return self.parse_response(markers, body, self)
-        else:
-            footmark.log.error('%s %s' % (response[0], body))
-            raise self.ResponseError(response[0], body)
+        except ServerException as e:
+            footmark.log.error('%s' % e)
+            raise self.ResponseError(e)
+        except Exception as e:
+            footmark.log.error('%s' % e)
+            raise e
 
     def get_status(self, action, params):
-        response = self.make_request(action, params)
-        body = response[-1]
-        footmark.log.debug(body)
-        if not body:
-            footmark.log.error('Null body %s' % body)
-            raise self.ResponseError(response[0], body)
-        elif response[0] in (200, 201):
-            footmark.log.info('status= %s ; body= %s' % (response[0], body))
-            #return 'success'
-            return json.loads(body)
-        else:
-            footmark.log.error('%s %s' % (response[0], body))
-            raise self.ResponseError(response[0], body)
+        try:
+            body = self.make_request(action, params)
+            footmark.log.debug('body= %s' % body)
+            body = json.loads(body, encoding='UTF-8')
+            if body:
+                return True
+            return False
+        except ServerException as e:
+            footmark.log.error('%s' % e)
+            raise e
+        except Exception as e:
+            footmark.log.error('%s' % e)
+            raise e
+
+    def get_object(self, action, params, obj):
+        try:
+            body = self.make_request(action, params)
+            footmark.log.debug(body)
+            markers = ["", obj]
+            obj = self.parse_response(markers, body, self)
+            if obj:
+                return obj
+            return None
+        except ServerException as e:
+            footmark.log.error('%s' % e)
+            raise e
+        except Exception as e:
+            footmark.log.error('%s' % e)
+            raise e

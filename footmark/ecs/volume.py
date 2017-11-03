@@ -1,7 +1,7 @@
 """
 Represents an ECS Elastic Block Storage Volume
 """
-from footmark.ecs.ecsobject import *
+from footmark.ecs.ecsobject import TaggedECSObject
 
 
 class Disk(TaggedECSObject):
@@ -27,13 +27,15 @@ class Disk(TaggedECSObject):
         self.tag = {}
 
     def __repr__(self):
-        return 'Volume:%s' % self.id
+        return 'Disk:%s' % self.id
 
     def __getattr__(self, name):
         if name.startswith('volume'):
             return getattr(self, 'disk' + name[6:])
         if name == 'id':
             return self.disk_id
+        if name == 'name':
+            return self.disk_name
         if name == 'state':
             return self.status
         if name == 'delete_on_termination':
@@ -45,6 +47,8 @@ class Disk(TaggedECSObject):
             return setattr(self, 'disk' + name[6:])
         if name == 'id':
             self.disk_id = value
+        if name == 'name':
+            self.disk_name = value
         if name == 'status':
             value = value.lower()
         if name == 'state':
@@ -61,7 +65,7 @@ class Disk(TaggedECSObject):
     def _update(self, updated):
         self.__dict__.update(updated.__dict__)
 
-    def update(self, validate=False, dry_run=False):
+    def update(self, validate=False):
         """
         Update the data associated with this volume by querying ECS.
 
@@ -73,13 +77,51 @@ class Disk(TaggedECSObject):
                          returned from ECS.
         """
         # Check the resultset since Eucalyptus ignores the volumeId param
-        unfiltered_rs = self.connection.get_all_volumes(
-            [self.id],
-            dry_run=dry_run
-        )
+        unfiltered_rs = self.connection.get_all_volumes([self.id])
         rs = [x for x in unfiltered_rs if x.id == self.id]
         if len(rs) > 0:
             self._update(rs[0])
+        # rs = self.connection.get_all_volumes([self.id])
+        # if len(rs) > 0:
+        #     for r in rs:
+        #         if r.id == self.id:
+        #             self._update(r)
         elif validate:
             raise ValueError('%s is not a valid Volume ID' % self.id)
         return self.status
+
+    def attach(self, instance_id, delete_with_instance=None):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.attach_disk(self.id, instance_id, delete_with_instance=delete_with_instance)
+
+    def detach(self, instance_id):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.detach_disk(self.id, instance_id)
+
+    def delete(self):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.delete_disk(self.id)
+
+    def modify(self, disk_name=None, description=None, delete_with_instance=None):
+        """
+        Attach disk to an instance.
+
+        :type instance_id: str
+        :param instance_id: The Id of instance.
+        """
+        return self.connection.modify_disk(self.id, disk_name=disk_name, description=description, delete_with_instance=delete_with_instance)

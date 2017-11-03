@@ -1,14 +1,17 @@
 # encoding: utf-8
 import warnings
-
-import six
 import time
-import json
 
 from footmark.connection import ACSQueryConnection
 from footmark.vpc.regioninfo import RegionInfo
 from footmark.exception import VPCResponseError
-from footmark.ecs.vrouter import VRouterList
+from footmark.resultset import ResultSet
+from footmark.vpc.vpc import Vpc
+from footmark.vpc.eip import Eip
+from footmark.vpc.vswitch import VSwitch
+from footmark.vpc.router import RouteEntry, RouteTable
+from footmark.vpc.config import *
+from aliyunsdkcore.acs_exception.exceptions import ServerException
 
 
 class VPCConnection(ACSQueryConnection):
@@ -18,7 +21,7 @@ class VPCConnection(ACSQueryConnection):
     ResponseError = VPCResponseError
 
     def __init__(self, acs_access_key_id=None, acs_secret_access_key=None,
-                 region=None, sdk_version=None, security_token=None, ):
+                 region=None, sdk_version=None, security_token=None, user_agent=None):
         """
         Init method to create a new connection to ECS.
         """
@@ -31,9 +34,10 @@ class VPCConnection(ACSQueryConnection):
 
         self.VPCSDK = 'aliyunsdkecs.request.v' + self.SDKVersion.replace('-', '')
 
-        super(VPCConnection, self).__init__(acs_access_key_id,
-                                            acs_secret_access_key,
-                                            self.region, self.VPCSDK, security_token)
+        super(VPCConnection, self).__init__(acs_access_key_id=acs_access_key_id,
+                                            acs_secret_access_key=acs_secret_access_key,
+                                            region=self.region, product=self.VPCSDK,
+                                            security_token=security_token, user_agent=user_agent)
 
     def build_filter_params(self, params, filters):
         if not isinstance(filters, dict):
@@ -65,71 +69,468 @@ class VPCConnection(ACSQueryConnection):
 
             self.build_filters_params(params, value)
 
-    def delete_vswitch(self, vpc_id, purge_vswitches):
+    def create_vpc(self, cidr_block=None, user_cidr=None, vpc_name=None, description=None, wait_timeout=None, wait=None):
+
         """
-        Delete multiple VSwitched
-        :type vpc_id : str
-        :param vpc_id: The Id of vpc
-        :type purge_vswitches: str
-        :param purge_vswitches: The ID of the VSwitch to be deleted
-        :return: return result of VSwitchIds
+        Create a ECS VPC (virtual private cloud) in Aliyun Cloud
+        :type cidr_block: String
+        :param cidr_block: The cidr block representing the VPC, e.g. 10.0.0.0/8
+        :type user_cidr: String
+        :param user_cidr: User custom cidr in the VPC
+        :type vpc_name: String
+        :param vpc_name: A VPC name
+        :type description: String
+        :param description: Description about VPC
+        :type wait: string
+        :param wait: An optional bool value indicating wait for instance to be running before running
+        :type wait_timeout: int
+        :param wait_timeout: An optional int value indicating how long to wait, default 300
+        :return: Returns details of created VPC
         """
-        results = []
-        instance_conn_vswitch = []
-        changed = False
+
         params = {}
-        vswitch_to_delete = []
-        try:
-            response = self.get_vpc_info(vpc_id=vpc_id)
-            if response[0][u'TotalCount'] > 0:                
-                if response[0][u'Vpcs'][u'Vpc'][0][u'VSwitchIds'][u'VSwitchId']:
-                    for purge in purge_vswitches:
-                        flag = False
-                        for response_vswitch in response[0][u'Vpcs'][u'Vpc'][0][u'VSwitchIds'][u'VSwitchId']:
-                            if str(purge) == str(response_vswitch):
-                                flag = True
-                                vswitch_to_delete.append(purge)
-                        if not flag:
-                            results.append({"status": purge+" VSwitch not found to delete", "flag": False})
-                    if purge_vswitches:
-                        for purge_vswitche in vswitch_to_delete:
-                            params = {}
-                            self.build_list_params(params, purge_vswitche, 'VSwitchId')
-                            del_result = self.get_status('DeleteVSwitch', params)
-                            results.append({"status": purge_vswitche+" deleted", "flag": True})
-                            changed = True
-                    else:
-                        results.append({"status": "Vswitchs is not found in specified vpc", "flag": False})
-            else:
-                results.append({"status": "VPC not found", "flag": False})
+        timeout = 20
 
-        except Exception as ex:                       
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        if cidr_block:
+            self.build_list_params(params, cidr_block, 'CidrBlock')
 
-        return changed, results
+        if user_cidr:
+            self.build_list_params(params, user_cidr, 'UserCidr')
 
-    def get_vpc_info(self, vpc_id):
+        if vpc_name:
+            self.build_list_params(params, vpc_name, 'VpcName')
+
+        if description:
+            self.build_list_params(params, description, 'Description')
+
+        response = self.get_object('CreateVpc', params, ResultSet)
+        vpc_id = str(response.vpc_id)
+        if str(wait).lower() in ['yes', 'true'] and wait_timeout:
+            timeout = wait_timeout
+        self.wait_for_vpc_status(vpc_id, 'Available', 4, timeout)
+
+        return self.get_vpc_attribute(vpc_id)
+
+    def get_vpc_attribute(self, vpc_id):
         """
         method to get all vpcId of particular region 
         :return: Return All vpcs in the region
         """
+        vpcs = self.get_all_vpcs(vpc_id=vpc_id)
+        if vpcs:
+            return vpcs[0]
+
+        return None
+
+    def get_all_vpcs(self, vpc_id=None, is_default=None, pagenumber=1, pagesize=10):
+        """
+        Find Vpc in One Region
+        :type vpc_id: string
+        :param vpc_id: Vpc Id of the targeted Vpc to terminate
+        :type is_default: bool
+        :param is_default: The vpc created by system if it is True
+        :type pagenumber: integer
+        :param pagenumber: Page number of the instance status list. The start value is 1. The default value is 1
+        :type pagesize: integer
+        :param pagesize: Sets the number of lines per page for queries per page. The maximum value is 50.
+        The default value is 10
+        :rtype: list
+        :return: Returns VPC list if vpcs found along with Vpc details.
+        """
         params = {}
-        results = []
 
-        try:
-            v_ids = {}
+        if vpc_id:
             self.build_list_params(params, vpc_id, 'VpcId')
-            response = self.get_status('DescribeVpcs', params)
-            results.append(response)
-            
-        except Exception as ex:        
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
 
-        return results
+        if is_default is not None:
+            self.build_list_params(params, is_default, 'IsDefault')
+
+        self.build_list_params(params, pagenumber, 'PageNumber')
+        self.build_list_params(params, pagesize, 'PageSize')
+
+        return self.get_list('DescribeVpcs', params, ['Vpcs', Vpc])
+
+    def modify_vpc(self, vpc_id, vpc_name=None, description=None, user_cidr=None, wait_timeout=None, wait=None):
+
+        """
+        Modify a ECS VPC's (virtual private cloud) attribute in Aliyun Cloud
+        :type vpc_id: string
+        :param vpc_id: Vpc Id of the targeted Vpc to modify
+        :type vpc_name: String
+        :param vpc_name: A VPC name
+        :type description: String
+        :param description: Description about VPC
+        :type user_cidr: String
+        :param user_cidr: User custom cidr in the VPC
+        :type wait: string
+        :param wait: An optional bool value indicating wait for instance to be running before running
+        :type wait_timeout: int
+        :param wait_timeout: An optional int value indicating how long to wait, default 300
+        :return: Returns details of created VPC
+        """
+
+        params = {}
+        self.build_list_params(params, vpc_id, 'VpcId')
+
+        if user_cidr:
+            self.build_list_params(params, user_cidr, 'UserCidr')
+
+        if vpc_name:
+            self.build_list_params(params, vpc_name, 'VpcName')
+
+        if description:
+            self.build_list_params(params, description, 'Description')
+
+        self.get_status('ModifyVpcAttribute', params)
+
+        timeout = 16
+        if str(wait).lower() in ['yes', 'true'] and wait_timeout:
+            timeout = wait_timeout
+        self.wait_for_vpc_status(vpc_id, 'Available', 4, timeout)
+
+        return self.get_vpc_attribute(vpc_id)
+
+    def delete_vpc(self, vpc_id):
+        """
+        Delete Vpc
+        :type vpc_id: string
+        :param vpc_id: Vpc Id of the targeted Vpc to terminate
+        :rtype: bool
+        :return: Return result of deleting.
+       """
+        changed = False
+
+        params = {}
+
+        self.build_list_params(params, vpc_id, 'VpcId')
+
+        if self.wait_for_vpc_status(vpc_id, 'Available', 4, 16):
+            changed = self.get_status('DeleteVpc', params)
+
+        return changed
+
+    def create_vswitch(self, zone_id, vpc_id, cidr_block, vswitch_name=None, description=None):
+        """
+        :type zone_id: String
+        :param zone_id: Required parameter. ID of the zone to which an VSwitch belongs
+        :type vpc_id: String
+        :param vpc_id: Required parameter. The VPC ID of the new VSwitch
+        :type cidr_block: String
+        :param cidr_block: Required parameter. The cidr block representing the VSwitch, e.g. 10.0.0.0/8
+        :type vswitch_name: String
+        :param vswitch_name: A VSwitch name
+        :type description: String
+        :param description: Description about VSwitch
+        
+        :return: Return the operation result and details of created VSwitch
+        """
+        params = {}
+
+        self.build_list_params(params, vpc_id, 'VpcId')
+        self.build_list_params(params, zone_id, 'ZoneId')
+        self.build_list_params(params, cidr_block, 'CidrBlock')
+
+        if vswitch_name:
+            self.build_list_params(params, vswitch_name, 'VSwitchName')
+
+        if description:
+                self.build_list_params(params, description, 'Description')
+
+        response = self.get_object('CreateVSwitch', params, ResultSet)
+        vsw_id = str(response.vswitch_id)
+        changed = self.wait_for_vswitch_status(vsw_id, 'Available', 4, 16)
+        return changed, self.get_vswitch_attribute(vsw_id)
+
+    def get_all_vswitches(self, vpc_id=None, vswitch_id=None, zone_id=None, is_default=None, pagenumber=1, pagesize=10):
+        """
+        Find Vpc
+        :type vpc_id: String
+        :param vpc_id: The VPC ID of the VSwitch
+        :type vswitch_id: String
+        :param vswitch_id: ID of the specified VSwitch
+        :type zone_id: String
+        :param zone_id: ID of the zone to which an VSwitch belongs
+        :type is_default: bool
+        :param is_default: The vswitch created by system if it is True
+        :type pagenumber: integer
+        :param pagenumber: Page number of the instance status list. The start value is 1. The default value is 1
+        :type pagesize: integer
+        :param pagesize: Sets the number of lines per page for queries per page. The maximum value is 50.
+        The default value is 10
+        :rtype: list
+        :return: Return VSwitch list if VSwitches found along with VSwitch details.
+        """
+        params = {}
+
+        if vpc_id:
+            self.build_list_params(params, vpc_id, 'VpcId')
+
+        if vswitch_id:
+            self.build_list_params(params, vswitch_id, 'VSwitchId')
+
+        if zone_id:
+            self.build_list_params(params, zone_id, 'ZoneId')
+
+        if is_default is not None:
+            self.build_list_params(params, is_default, 'IsDefault')
+
+        self.build_list_params(params, pagenumber, 'PageNumber')
+        self.build_list_params(params, pagesize, 'PageSize')
+
+        return self.get_list('DescribeVSwitches', params, ['VSwitches', VSwitch])
+
+    def get_vswitch_attribute(self, vswitch_id):
+        """
+        method to get specified vswitch attribute 
+        :return: Return vswitch with its attribute
+        """
+
+        response = self.get_all_vswitches(vswitch_id=vswitch_id)
+        if response:
+            return response[0]
+
+        return None
+
+    def modify_vswitch(self, vswitch_id, vswitch_name=None, description=None):
+        """
+        :type vswitch_id: String
+        :param vswitch_id: Required parameter. The VSwitch ID.
+        :type vswitch_name: String
+        :param vswitch_name: A VSwitch name
+        :type description: String
+        :param description: Description about VSwitch
+        
+        :return: Return the operation result and details of modified VSwitch
+        """
+        params = {}
+
+        self.build_list_params(params, vswitch_id, 'VSwitchId')
+
+        if vswitch_name:
+            self.build_list_params(params, vswitch_name, 'VSwitchName')
+
+        if description:
+            self.build_list_params(params, description, 'Description')
+
+        self.get_status('ModifyVSwitchAttribute', params)
+        self.wait_for_vswitch_status(vswitch_id, 'Available', 4, 16)
+        return self.get_vswitch_attribute(vswitch_id)
+
+    def delete_vswitch(self, vswitch_id):
+        """
+        Delete VSwitch
+        :type vswitch_id : str
+        :param vswitch_id: The Id of vswitch
+        :rtype bool
+        :return: return result of deleting
+        """
+
+        changed = False
+        delay = 4
+        timeout = 20
+
+        params = {}
+
+        self.build_list_params(params, vswitch_id, 'VSwitchId')
+
+        if self.wait_for_vswitch_status(vswitch_id, 'Available', delay, timeout):
+            while timeout > 0:
+                try:
+                    changed = self.get_status('DeleteVSwitch', params)
+                    break
+                except ServerException as e:
+                    if e.error_code == DependencyViolation:
+                        print "Specified vswitch %s has dependent resources - try again" % vswitch_id
+                        timeout -= delay
+                        if timeout <= 0:
+                            raise Exception("Timeout Error: Waiting for deleting specified vswitch %s." % vswitch_id)
+
+                        time.sleep(delay)
+
+        return changed
+
+    def delete_vswitch_with_vpc(self, vpc_id):
+        """
+        Delete VSwitches in the specified VPC
+        :type vpc_id : str
+        :param vpc_id: The Id of vpc to which vswitch belongs
+        :rtype list
+        :return: return list ID of deleted VSwitch
+        """
+
+        vswitch_ids = []
+        if not vpc_id:
+                raise Exception(msg="It must be specify vpc_id.")
+
+        vswitches = self.get_all_vswitches(vpc_id=vpc_id)
+        for vsw in vswitches:
+            vsw_id = str(vsw.id)
+            if self.delete_vswitch(vsw_id):
+                vswitch_ids.append(vsw_id)
+
+        return vswitch_ids
+
+    def create_route_entry(self, route_table_id, destination_cidrblock, nexthop_type=None, nexthop_id=None, nexthop_list=None):
+        """
+        Create RouteEntry for VPC
+        :type route_table_id: str
+        :param route_table_id: ID of route table in the VPC
+        :type destination_cidrblock: str
+        :param destination_cidrblock: The destination CIDR of route entry. It must be a legal CIDR or IP address, such as: 192.168.0.0/24 or 192.168.0.1
+        :type nexthop_type: str
+        :param nexthop_type: The type of next hop. Available value options: Instance, Tunnel, HaVip, RouterInterface. Default is Instance.
+        :type next_hop_id: str
+        :param next_hop_id: The ID of next hop.
+        :type nexthop_list: str
+        :param nexthop_list: The route item of next hop list. 
+        :rtype 
+        :return Return result of Creating RouteEntry.
+        """
+        params = {}
+
+        self.build_list_params(params, route_table_id, 'RouteTableId')
+        self.build_list_params(params, destination_cidrblock, 'DestinationCidrBlock')
+
+        if nexthop_type:
+            self.build_list_params(params, nexthop_type, 'NextHopType')
+
+        if nexthop_id:
+            self.build_list_params(params, nexthop_id, 'NextHopId')
+
+        if nexthop_list:
+            self.build_list_params(params, nexthop_list, 'NextHopList')
+
+        if self.get_status('CreateRouteEntry', params)\
+                and self.wait_for_route_entry_status(route_table_id, destination_cidrblock, 'Available', 4, 16):
+
+            return self.get_route_entry_attribute(route_table_id, destination_cidrblock)
+
+        return None
+
+    def get_route_entry_attribute(self, route_table_id, destination_cidrblock, nexthop_id=None):
+        """
+        Querying route entry attribute
+        :type route_table_id: str
+        :param route_table_id: ID of route table in the VPC
+        :type destination_cidrblock: str
+        :param destination_cidrblock: The destination CIDR of route entry. It must be a legal CIDR or IP address, such as: 192.168.0.0/24 or 192.168.0.1
+        :type nexthop_id: str
+        :param nexthop_type: The ID of next hop.
+        :rtype 
+        :return: VRouters in json format
+        """
+
+        route_entries = self.get_all_route_entries(route_table_id=route_table_id)
+        if route_entries:
+            for entry in route_entries:
+                if destination_cidrblock == str(entry.destination_cidrblock):
+                    return entry
+        return None
+
+    def get_all_route_entries(self, router_id=None, router_type=None, route_table_id=None, pagenumber=1, pagesize=10):
+        """
+        Querying all route entries in the specified router or route_tables_id
+        :type router_id: str
+        :param router_id: The ID of router which is to be fetched.
+        :type router_type str
+        :param router_type: The type of router which is to be fetched.
+        :type route_table_id: str
+        :param route_table_id: ID of route table in one VPC
+        :type pagenumber: integer
+        :param pagenumber: Page number of the route table list. The start value is 1. The default value is 1
+        :type pagesize: integer
+        :param pagesize: Sets the number of lines per page for queries per page. The maximum value is 50.
+        The default value is 10 
+        :rtype list<>
+        :return: List of route entry.
+        """
+        route_tables = self.get_all_route_tables(router_id=router_id, router_type=router_type, route_table_id=route_table_id,
+                                                 pagenumber=pagenumber, pagesize=pagesize)
+        route_entries = []
+        if route_tables:
+            for table in route_tables:
+                if table.route_entrys:
+                    for entry in table.route_entrys['route_entry']:
+                        route_entry = RouteEntry(self)
+                        for k, v in entry.items():
+                            setattr(route_entry, k, v)
+                        route_entries.append(route_entry)
+
+        return route_entries
+
+    def delete_route_entry(self, route_table_id, destination_cidrblock=None, nexthop_id=None, nexthop_list=None):
+        """
+        Deletes the specified RouteEntry for the vpc
+        :type route_table_id: str
+        :param route_table_id: ID of route table in the VPC
+        :type destination_cidrblock: str
+        :param destination_cidrblock: The destination CIDR of route entry. It must be a legal CIDR or IP address, such as: 192.168.0.0/24 or 192.168.0.1
+        :type next_hop_id: str
+        :param next_hop_id: The ID of next hop.
+        :type nexthop_list: str
+        :param nexthop_list: The route item of next hop list.
+        :rtype bool
+        :return Return result of deleting route entry.
+        """
+        params = {}
+
+        self.build_list_params(params, route_table_id, 'RouteTableId')
+        if destination_cidrblock:
+            self.build_list_params(params, destination_cidrblock, 'DestinationCidrBlock')
+
+        if nexthop_id:
+            self.build_list_params(params, nexthop_id, 'NextHopId')
+
+        if nexthop_list:
+            self.build_list_params(params, nexthop_list, 'NextHopList')
+
+        return self.get_status('DeleteRouteEntry', params)
+
+    def get_route_table_attribute(self, route_table_id):
+        """
+        Querying route table attribute
+        :type route_table_id: str
+        :param route_table_id: ID of route table in the VPC
+        :rtype dict
+        :return: VRouters in json format
+        """
+        return self.get_all_route_tables(route_table_id=route_table_id)
+
+    def get_all_route_tables(self, router_id=None, router_type=None, route_table_id=None, pagenumber=1, pagesize=10):
+        """
+        Querying vrouter
+        :type router_id: str
+        :param router_id: The ID of router which is to be fetched.
+        :type router_type str
+        :param router_type: The type of router which is to be fetched.
+        :type route_table_id: str
+        :param route_table_id: ID of route table in one VPC
+        :type pagenumber: integer
+        :param pagenumber: Page number of the route entry list. The start value is 1. The default value is 1
+        :type pagesize: integer
+        :param pagesize: Sets the number of lines per page for queries per page. The maximum value is 50.
+        The default value is 10 
+        :rtype list<>
+        :return: List of route entry.
+        """
+        params = {}
+
+        if router_id:
+            self.build_list_params(params, router_id, 'RouterId')
+
+        if router_type:
+            self.build_list_params(params, router_type, 'RouterType')
+
+        if route_table_id:
+            self.build_list_params(params, route_table_id, 'RouteTableId')
+
+        if pagenumber:
+            self.build_list_params(params, pagenumber, 'PageNumber')
+
+        if pagesize:
+            self.build_list_params(params, pagesize, 'PageSize')
+
+        return self.get_list('DescribeRouteTables', params, ['RouteTables', RouteTable])
 
     def get_instance_info(self):
         """
@@ -151,33 +552,7 @@ class VPCConnection(ACSQueryConnection):
 
         return results
 
-    def describe_vswitch(self, purge_vswitches, vpc_id):
-        """
-        method to check vswitch present or not       
-        :type vpc_id : str
-        :param vpc_id: The Id of vpc in which switch is present
-        :type purge_vswitches :str
-        :param purge_vswitches: The Id of vswitch to be describe
-        :return: Return the status of the vswitch
-        """
-        params = {}
-        results = []
-
-        try:     
-                             
-            self.build_list_params(params, purge_vswitches, 'VSwitchId')
-            self.build_list_params(params, vpc_id, 'VpcId')
-            response = self.get_status('DescribeVSwitches', params)
-            results.append(response)
-            
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return results
-
-    def requesting_eip_addresses(self, bandwidth, internet_charge_type):
+    def allocate_eip_addresses(self, bandwidth, internet_charge_type):
         """
         method to query eip addresses in the region
         :type bandwidth : str
@@ -187,23 +562,19 @@ class VPCConnection(ACSQueryConnection):
         :return: Return the allocationId , requestId and EIP address
         """
         params = {}
-        results = []
+        results = {}
         changed = False
-        try:
-            if bandwidth:
-                self.build_list_params(params, bandwidth, 'Bandwidth')
+        if bandwidth:
+            self.build_list_params(params, bandwidth, 'Bandwidth')
             
-            if internet_charge_type:
-                self.build_list_params(params, internet_charge_type, 'InternetChargeType')
+        if internet_charge_type:
+            self.build_list_params(params, internet_charge_type, 'InternetChargeType')
                   
-            results = self.get_status('AllocateEipAddress', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return changed, results
+        results = self.get_object('AllocateEipAddress', params, ResultSet)
+        eips = self.describe_eip_address(eip_address = results.eip_address, allocation_id = results.allocation_id)
+        changed = True
+        
+        return changed, eips.eip_addresses["eip_address"][0]
 
     def bind_eip(self, allocation_id, instance_id):
         """
@@ -214,19 +585,13 @@ class VPCConnection(ACSQueryConnection):
         :return:Returns the status of operation
         """
         params = {}
-        results = []
+        result = False
         
         self.build_list_params(params, allocation_id, 'AllocationId')
         self.build_list_params(params, instance_id, 'InstanceId')
        
-        try:
-            results = self.get_status('AssociateEipAddress', params)
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-       
-        return results
+        self.get_object('AssociateEipAddress', params, ResultSet)
+        return self.wait_for_eip_status(allocation_id=allocation_id, status="InUse")    
 
     def unbind_eip(self, allocation_id, instance_id):
         """
@@ -237,21 +602,16 @@ class VPCConnection(ACSQueryConnection):
         :return:Request Id
         """
         params = {}
-        results = []
-        changed = False
+        result = False
         if allocation_id:
             self.build_list_params(params, allocation_id, 'AllocationId')
         if instance_id:
             self.build_list_params(params, instance_id, 'InstanceId')
-        try:
-            results = self.get_status('UnassociateEipAddress', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
+        results = self.get_object('UnassociateEipAddress', params, ResultSet)
+        if results.request_id:
+            result = self.wait_for_eip_status(allocation_id=allocation_id, status="Available")  
 
-        return changed, results
+        return result
         
     def modifying_eip_attributes(self, allocation_id, bandwidth):
         """
@@ -269,14 +629,9 @@ class VPCConnection(ACSQueryConnection):
             self.build_list_params(params, allocation_id, 'AllocationId')
         if bandwidth:
             self.build_list_params(params, bandwidth, 'Bandwidth')
-        try:
-            results = self.get_status('ModifyEipAddressAttribute', params)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
+        results = self.get_status('ModifyEipAddressAttribute', params)
+        changed = True
+        
         return changed, results
 
     def get_all_vrouters(self, vrouter_id=None, pagenumber=None, pagesize=None):
@@ -312,68 +667,6 @@ class VPCConnection(ACSQueryConnection):
 
         return False, results
 
-    def delete_custom_route(self, purge_routes, vpc_id):
-        """
-        Deletes the specified RouteEntry for the vpc
-        :type purge_routes: Dict
-        :param purge_routes:
-            - route_table_id: Id of the route table
-            - destination_cidr_block: The RouteEntry's target network segment
-            - next_hop_id: The route entry's next hop
-        :type vpc_id: str
-        :param vpc_id: Id of VPC
-        :return: Return status of operation
-        """
-        params = {}
-        results = []
-        vrouter_table_id = None
-        changed = False
-
-        # Describe Vpc for getting VRouterId            
-        desc_vpc_param = {}
-        self.build_list_params(desc_vpc_param, vpc_id, 'VpcId')
-        desc_vpc_response = self.get_status('DescribeVpcs', desc_vpc_param)
-        if int(desc_vpc_response[u'TotalCount']) > 0:
-            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId']) 
-        
-            # Describe Route Tables for getting RouteTable Id                    
-            desc_route_table_param = {}
-            self.build_list_params(desc_route_table_param, vrouter_id, 'VRouterId')
-            desc_route_table_response = self.get_status('DescribeRouteTables', desc_route_table_param)
-            if int(desc_route_table_response[u'TotalCount']) > 0:
-                vrouter_table_id = str(desc_route_table_response[u'RouteTables'][u'RouteTable'][0][u'RouteTableId'])
-
-        if 'route_table_id' in purge_routes:
-            if 'next_hop_id' in purge_routes:
-                if vrouter_table_id == purge_routes["route_table_id"]:                
-                    self.build_list_params(params, purge_routes["route_table_id"], 'RouteTableId')        
-                    fixed_dest_cidr_block = None
-                    if 'dest' in purge_routes:
-                        fixed_dest_cidr_block = purge_routes["dest"]
-                    if 'destination_cidrblock' in purge_routes:
-                        fixed_dest_cidr_block = purge_routes["destination_cidrblock"]
-                    if fixed_dest_cidr_block:
-                        self.build_list_params(params, fixed_dest_cidr_block, 'DestinationCidrBlock')
-        
-                    self.build_list_params(params, purge_routes["next_hop_id"], 'NextHopId')
-
-                    try:
-                        results = self.get_status('DeleteRouteEntry', params)
-                        changed = True
-                    except Exception as ex:
-                        error_code = ex.error_code
-                        error_msg = ex.message
-                        results.append({"Error Code": error_code, "Error Message": error_msg})
-                else:
-                    changed = False
-                    results.append({ "Error Message": "RouteTableId or VpcId does not exist"})
-            else:
-                results.append({"Error Message": "next_hop_id is required to delete route entry"})
-        else:
-            results.append({"Error Message": "route_table_id is required to delete route entry"})
-
-        return changed, results
-
     def releasing_eip(self, allocation_id):
         """
         To release Elastic Ip
@@ -384,21 +677,48 @@ class VPCConnection(ACSQueryConnection):
         params = {}
         results = []
         describe_eip = []
-        flag = False
+        result = False
 
-        try:
+        self.build_list_params(params, allocation_id, 'AllocationId')
+        results = self.get_object('ReleaseEipAddress', params, ResultSet)
+        if results.request_id:
+            result = True
+             
+        return result
+    
+    def wait_condition(self, delayTime, timeOut, condition):
+        tm = 0
+        assert(delayTime > 0)
+        assert(timeOut > delayTime)
+        while tm < timeOut:
+            if condition(tm):
+                return True
+            tm = tm + delayTime
+            time.sleep(delayTime)
+        return False        
+               
+    def wait_for_eip_status(self, eip_address = None, allocation_id=None, status = "", delayTime = 1, timeOut = 8):
+        """
+        wait for bind ok
+        :param eip_address:
+        :param allocation_id:
+        :param status:
+        :return: 
+        """
+        params = {}
+        result = False
+
+        if allocation_id:
             self.build_list_params(params, allocation_id, 'AllocationId')
-            results = self.get_status('ReleaseEipAddress', params)
+        if eip_address:
+            self.build_list_params(params, eip_address, 'EipAddress')
 
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return results
+        condition = lambda s :status == self.get_object('DescribeEipAddresses', params, ResultSet).eip_addresses['eip_address'][0]['status']
+        result = self.wait_condition(delayTime, timeOut, condition)
+        return result
 
     def describe_eip_address(self, eip_address=None, allocation_id=None, eip_status=None,
-                             page_number=1, page_size=50):
+                             page_number=1, page_size=10):
         """
         Get EIP details for a region
         :param eip_address:
@@ -407,7 +727,6 @@ class VPCConnection(ACSQueryConnection):
         :return:
         """
         params = {}
-        results = []
         eip_details=None
 
         if allocation_id:
@@ -419,222 +738,9 @@ class VPCConnection(ACSQueryConnection):
 
         self.build_list_params(params, page_number, 'PageNumber')
         self.build_list_params(params, page_size, 'PageSize')
-
-        try:
-            response = self.get_status('DescribeEipAddresses', params)
-            eip_details = response['EipAddresses']['EipAddress']
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-
-        return eip_details, results
-
-    def create_vpc(self, cidr_block=None, user_cidr=None, vpc_name=None, description=None, vswitches=None,
-                   wait_timeout=None, wait=None):
-
-        """
-        Create a ECS VPC (virtual private cloud) in Aliyun Cloud
-        :type cidr_block: String
-        :param cidr_block: The cidr block representing the VPC, e.g. 10.0.0.0/8
-        :type user_cidr: String
-        :param user_cidr: User custom cidr in the VPC
-        :type vpc_name: String
-        :param vpc_name: A VPC name
-        :type description: String
-        :param description: Description about VPC
-        :type vswitches: List
-        :param vswitches: List of Dictionary of Parameters for creating subnet(vswitch)
-        :type wait: string
-        :param wait: An optional bool value indicating wait for instance to be running before running
-        :type wait_timeout: int
-        :param wait_timeout: An optional int value indicating how long to wait, default 300
-        :return: Returns details of created VPC
-        """
-
-        params = {}
-        results = []
-        changed = False
-
-        if cidr_block:
-            self.build_list_params(params, cidr_block, 'CidrBlock')
-
-        if user_cidr:
-            self.build_list_params(params, user_cidr, 'UserCidr')
-
-        if vpc_name:
-            self.build_list_params(params, vpc_name, 'VpcName')
-
-        if description:
-            self.build_list_params(params, description, 'Description')
-
-        try:
-            response = self.get_status('CreateVpc', params)
-            vpc_id = str(response['VpcId'])
-            route_table_id = str(response['RouteTableId'])
-            results.append(response)
-            changed = True
-        except Exception as ex:
-            error_code = ex.error_code
-            error_msg = ex.message
-            results.append({"Error Code": error_code, "Error Message": error_msg})
-        else:
-            # creating vswitch(subnet) after creation of VPC
-            time.sleep(30)
-
-            if vswitches:
-                vswitch_response = self.create_vswitch(vpc_id=vpc_id, vswitches=vswitches)
-                if 'error code' in str(vswitch_response).lower() and 'error message' in str(vswitch_response).lower():
-                    results.append(vswitch_response[1][0]['Error Message'])
-                else:
-                     results.append(vswitch_response[1])
-
-        if str(wait).lower() in ['yes', 'true'] and wait_timeout:
-            time.sleep(wait_timeout)
-
-        return changed, results
-
-    def create_vswitch(self, vpc_id, vswitches):
-        """
-        :type vpc_id: String
-        :param vpc_id: The VPC of the new VSwitch
-        :type vswitches: dict
-        :param vswitches:
-         - zone_id: Zone Id is specific zone inside region that we worked
-         - cidr_block: The network address allocated to the new VSwitch
-         - vswitch_name: The VSwitch name. The default value is blank. [2, 128] English or Chinese characters,
-         must begin with an uppercase/lowercase letter or Chinese character. Can contain numbers, "_" and "-".
-         This value will appear on the console.It cannot begin with http:// or https://.
-         - description: The VSwitch description. The default value is blank. [2, 256] English or Chinese characters.
-         Cannot begin with http:// or https://.
-        :return: VSwitchId The system allocated VSwitchID
-        """
-        params = {}
-        results = []
-        changed = False
-        VSwitchId = []
         
-        self.build_list_params(params, vpc_id, 'VpcId')
+        return self.get_list('DescribeEipAddresses', params, ['eip', Eip])
 
-        for vswitch in vswitches:
-            fix_zone_id = None
-            if 'zone' in vswitch:
-                fix_zone_id =  vswitch["zone"]
-            if 'az' in vswitch:
-                fix_zone_id = vswitch["az"]
-            if 'zone_id' in vswitch:
-                fix_zone_id = vswitch["zone_id"]
-            if fix_zone_id:
-                self.build_list_params(params, fix_zone_id, 'ZoneId')            
-
-            fix_cidr_block = None
-            if 'cidr' in vswitch:
-                fix_cidr_block =  vswitch["cidr"]
-            if 'cidr_block' in vswitch:
-                fix_cidr_block = vswitch["cidr_block"]
-            if fix_cidr_block:
-                self.build_list_params(params, fix_cidr_block, 'CidrBlock')            
-
-            fix_vswitch_name = None
-            if 'name' in vswitch:
-                fix_vswitch_name = vswitch["name"]
-            if 'vswitch_name' in vswitch:
-                fix_vswitch_name = vswitch["vswitch_name"]
-            if fix_vswitch_name:
-                self.build_list_params(params, fix_vswitch_name, 'VSwitchName')
-
-            if 'description' in vswitch:
-                self.build_list_params(params, vswitch["description"], 'Description')      
-
-            try:
-                response = self.get_status('CreateVSwitch', params)
-                results.append(response)
-                VSwitchId.append(response[u'VSwitchId'])
-                changed = True
-                time.sleep(10)
-            except Exception as ex:
-                error_code = ex.error_code
-                error_msg = ex.message
-                results.append({"Error Code": error_code, "Error Message": error_msg})
-        
-        return changed, results, VSwitchId
-
-    def create_route_entry(self, route_tables, vpc_id):
-        """
-        Create RouteEntry for VPC
-        :type route_tables: dict
-        :param route_tables:
-         - route_table_id: ID of VPC route table
-         - dest: It must be a legal CIDR or IP address, such as: 192.168.0.0/24 or 192.168.0.1
-         - next_hop_type: The next hop type. Available value options: Instance or Tunnel
-         - next_hop_id: The route entry's next hop
-         :param vpc_id: Id of vpc
-        :return: Returns details of RouteEntry
-        """
-        params = {}
-        results = []
-        changed = False        
-        vrouter_table_id = None
-
-        # Describe Vpc for getting VRouterId            
-        desc_vpc_param = {}
-        self.build_list_params(desc_vpc_param, vpc_id, 'VpcId')
-        desc_vpc_response = self.get_status('DescribeVpcs', desc_vpc_param)
-        if int(desc_vpc_response[u'TotalCount']) > 0:
-            vrouter_id = str(desc_vpc_response[u'Vpcs'][u'Vpc'][0][u'VRouterId']) 
-
-            # Describe Route Tables for getting RouteTable Id                    
-            desc_route_table_param = {}
-            self.build_list_params(desc_route_table_param, vrouter_id, 'VRouterId')
-            desc_route_table_response = self.get_status('DescribeRouteTables', desc_route_table_param)
-            if int(desc_route_table_response[u'TotalCount']) > 0:
-                vrouter_table_id = str(desc_route_table_response[u'RouteTables'][u'RouteTable'][0][u'RouteTableId'])
-
-            for vroute in route_tables:
-                self.build_list_params(params, vrouter_table_id , 'RouteTableId')              
-                if "next_hop_id" in vroute:
-                    if ("dest" in vroute) or ("destination_cidrblock" in vroute):
-                        fixed_dest_cidr_block = None
-                        if 'dest' in vroute:
-                            fixed_dest_cidr_block = vroute["dest"]
-                        if 'destination_cidrblock' in vroute:
-                            fixed_dest_cidr_block = vroute["destination_cidrblock"]
-                        if fixed_dest_cidr_block:
-                            self.build_list_params(params, fixed_dest_cidr_block, 'DestinationCidrBlock')
-
-                        if 'next_hop_type' in vroute:
-                            self.build_list_params(params, vroute["next_hop_type"], 'NextHopType')
-
-                        if 'next_hop_id' in vroute:
-                            self.build_list_params(params, vroute["next_hop_id"], 'NextHopId')
-                    
-                        try:
-                            instance_result = self.get_instance_info()
-                            flag = False
-                            if instance_result:
-                                for instances in instance_result[0][u'Instances'][u'Instance']:
-                                    if vroute["next_hop_id"] == instances['InstanceId']:
-                                        flag = True
-                                        break
-                            if flag:    
-                                response = self.get_status('CreateRouteEntry', params)
-                                results.append(response)
-                                changed = True
-                                time.sleep(10)
-                            else:
-                                results.append({"Error Message": str(vroute["next_hop_id"])+" Instance not found"})
-                        except Exception as ex:
-                            error_code = ex.error_code
-                            error_msg = ex.message
-                            results.append({"Error Code": error_code, "Error Message": error_msg})
-                    else:
-                        results.append({"Error Message": "destination_cidrblock is required to create custom route entry"})
-                else:
-                    results.append({"Error Message": "next_hop_id is required to create custom route entry"})
-        else:
-            results.append({"Error Message": "vpc_id is not valid"})
-        
-        return changed, results
 
     def get_vswitch_status(self, vpc_id, zone_id=None, vswitch_id=None, pagenumber=None, pagesize=None):
         """
@@ -674,80 +780,51 @@ class VPCConnection(ACSQueryConnection):
 
         return False, results
 
-    def delete_vpc(self, vpc_id=None):
-        """
-        Delete Vpc
-        :type vpc_id: string
-        :param vpc_id: Vpc Id of the targeted Vpc to terminate
-        :rtype: dict
-        :return: Returns a dictionary of Vpc Details that is targeted. If the Vpc was not deleted or found,
-        "changed" will be set to False.
-       """
-        results = []
-        changed = False
-
-        params = {}
-
-        if vpc_id:
-            self.build_list_params(params, vpc_id, 'VpcId')
+    def wait_for_vpc_status(self, vpc_id, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
 
         try:
-            response = self.get_status('DeleteVpc', params)
-            changed = True
-            results.append("Vpc with Id " + vpc_id + " successfully deleted.")
-        except Exception as ex:
-            error_code = ex.error_code
-            msg = ex.message
-            error_dict = {
-                'DependencyViolation.RouteEntry': 'Custom route rules still exist for the current VPC.'
-                                                  ' VPC deletion failed',
-                'DependencyViolation.Instance': 'Cloud product instances still exist for the current VPC.'
-                                                ' VPC deletion failed',
-                'DependencyViolation.VSwitch': 'VSwitches still exist for the current VPC. VPC deletion failed',
-                'DependencyViolation.SecurityGroup': 'Security groups still exist for the current VPC.'
-                                                     ' VPC deletion failed',
-                'IncorrectVpcStatus': 'The current VPC status does not support this operation',
-                'SDK.InvalidRegionId': 'Invalide Region Id'}
+            while True:
+                vpc = self.get_vpc_attribute(vpc_id)
+                if vpc and str(vpc.status) in [status, str(status).lower()]:
+                    return True
 
-            results.append("Following error occurred while deleting Vpc with Id "+vpc_id)
-            results.append("Error Code: " + error_code)
-            if error_code in error_dict:
-                results.append("Message: " + str(error_dict[error_code]))
-            else:
-                results.append("Message: " + str(msg))
+                timeout -= delay
 
-        return changed, results
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for VPC status is %s, time-consuming %d seconds." % (status, timeout))
 
-    def get_vpcs(self, vpc_id=None, region_id=None):
-        """
-        Find Vpc
-        :type vpc_id: string
-        :param vpc_id: Vpc Id of the targeted Vpc to terminate
-        :type region_id: string
-        :param region_id: Region Id to locate Vpc in
-        :rtype: bool
-        :return: Returns True if vpc found along with Vpc details else False with possible reason.
-        """
-        params = {}
+                time.sleep(delay)
+        except Exception as e:
+            raise e
 
-        if region_id:
-            self.build_list_params(params, region_id, 'RegionId')
-
-        if vpc_id:
-            self.build_list_params(params, vpc_id, 'VpcId')
-
+    def wait_for_vswitch_status(self, vswitch_id, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         try:
-            response = self.get_status('DescribeVpcs', params)
-            vpc_result = response['Vpcs']['Vpc']
-            if len(vpc_result) > 0:
-                return True, vpc_result
-            else:
-                return False, "Vpc does not exist"
-        except Exception as ex:
-            if len(ex.args):
-                msg, stack = ex.args
-                return False, "error occurred while finding Vpc :" + str(msg) + " " + str(stack)
-            else:
-                return False, "error occurred while finding Vpc :" + str(ex.error_code) + " " + str(ex.message)
+            while True:
+                vsw = self.get_vswitch_attribute(vswitch_id)
+                if vsw and str(vsw.status) in [status, str(status).lower()]:
+                    return True
 
+                timeout -= delay
 
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for VSwitch status is %s, time-consuming %d seconds." % (status, timeout))
+
+                time.sleep(delay)
+        except Exception as e:
+            raise e
+
+    def wait_for_route_entry_status(self, route_table_id, destination_cidrblock, status, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
+        try:
+            while True:
+                route_entry = self.get_route_entry_attribute(route_table_id, destination_cidrblock)
+                if route_entry and str(route_entry.status) in [status, str(status).lower()]:
+                    return True
+
+                timeout -= delay
+
+                if timeout <= 0:
+                    raise Exception("Timeout Error: Waiting for route entry status is %s, time-consuming %d seconds." % (status, timeout))
+
+                time.sleep(delay)
+        except Exception as e:
+            raise e
