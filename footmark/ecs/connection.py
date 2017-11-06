@@ -1160,6 +1160,10 @@ class ECSConnection(ACSQueryConnection):
             return disks[0]
         return None
 
+        rs = self.get_object('CreateDisk', params, ResultSet)
+
+        return self.get_volume_attribute(str(rs.disk_id))
+
     def attach_disk(self, disk_id, instance_id, delete_with_instance=None):
         """
         Method to attach a disk to instance

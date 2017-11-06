@@ -106,7 +106,6 @@ class VPCConnection(ACSQueryConnection):
 
         if client_token:
             self.build_list_params(params, client_token, 'ClientToken')
-
         response = self.get_object('CreateVpc', params, ResultSet)
         vpc_id = str(response.vpc_id)
         if str(wait).lower() in ['yes', 'true'] and wait_timeout:
