@@ -47,7 +47,7 @@ class RDSConnection(ACSQueryConnection):
                             connection_string_prefix=None, public_port=None, db_name=None, db_description=None,
                             character_set_name=None, maint_window=None, preferred_backup_time=None,
                             preferred_backup_period=None, backup_retention_period=None, db_tags=None, wait=None,
-                            wait_timeout=None):
+                            wait_timeout=None, client_token=None):
         """
          Create RDS Instance
 
@@ -151,6 +151,8 @@ class RDSConnection(ACSQueryConnection):
             self.build_list_params(params, vswitch_id, 'VSwitchId')
         if private_ip_address:
             self.build_list_params(params, private_ip_address, 'PrivateIpAddress')
+        if client_token:
+            self.build_list_params(params, client_token, 'ClientToken')
         try:
             results_instance = self.get_status('CreateDBInstance', params)
             if results_instance:

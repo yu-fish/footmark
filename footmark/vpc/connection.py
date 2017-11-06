@@ -69,7 +69,8 @@ class VPCConnection(ACSQueryConnection):
 
             self.build_filters_params(params, value)
 
-    def create_vpc(self, cidr_block=None, user_cidr=None, vpc_name=None, description=None, wait_timeout=None, wait=None):
+    def create_vpc(self, cidr_block=None, user_cidr=None, vpc_name=None, description=None, client_token=None,
+                   wait_timeout=None, wait=None):
 
         """
         Create a ECS VPC (virtual private cloud) in Aliyun Cloud
@@ -103,6 +104,8 @@ class VPCConnection(ACSQueryConnection):
         if description:
             self.build_list_params(params, description, 'Description')
 
+        if client_token:
+            self.build_list_params(params, client_token, 'ClientToken')
         response = self.get_object('CreateVpc', params, ResultSet)
         vpc_id = str(response.vpc_id)
         if str(wait).lower() in ['yes', 'true'] and wait_timeout:
@@ -209,7 +212,7 @@ class VPCConnection(ACSQueryConnection):
 
         return changed
 
-    def create_vswitch(self, zone_id, vpc_id, cidr_block, vswitch_name=None, description=None):
+    def create_vswitch(self, zone_id, vpc_id, cidr_block, vswitch_name=None, description=None, client_token=None):
         """
         :type zone_id: String
         :param zone_id: Required parameter. ID of the zone to which an VSwitch belongs
@@ -235,6 +238,9 @@ class VPCConnection(ACSQueryConnection):
 
         if description:
                 self.build_list_params(params, description, 'Description')
+
+        if client_token:
+            self.build_list_params(params, client_token, 'ClientToken')
 
         response = self.get_object('CreateVSwitch', params, ResultSet)
         vsw_id = str(response.vswitch_id)
