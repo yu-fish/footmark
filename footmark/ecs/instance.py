@@ -41,6 +41,8 @@ class Instance(TaggedECSObject):
             return self.security_groups[0].security_group_name
         if name == 'groups':
             return self.security_groups
+        if name in ('key_name', 'keypair', 'key_pair'):
+            return getattr(self, 'key_pair_name', '')
         raise AttributeError("Object {0} does not have attribute {1}".format(self.__repr__(), name))
 
     def __setattr__(self, name, value):
@@ -80,6 +82,8 @@ class Instance(TaggedECSObject):
             self.security_groups[0].security_group_name = value
         if name == 'groups':
             self.security_groups = value
+        if name in ('key_name', 'keypair', 'key_pair'):
+            self.key_pair_name = value
         if name == 'tags' and value:
             v = {}
             for tag in value['tag']:
@@ -181,3 +185,18 @@ class Instance(TaggedECSObject):
         :param security_group_id: The Security Group ID.
         """
         rs = self.connection.leave_security_group(self.id, security_group_id)
+
+    def attach_key_pair(self, key_pair_name):
+        """
+        Attach one key pair
+
+        :type key_pair_name: str
+        :param key_pair_name: The Key Pair Name.
+        """
+        rs = self.connection.attach_key_pair([self.id], key_pair_name)
+
+    def detach_key_pair(self):
+        """
+        detach one key pair
+        """
+        rs = self.connection.detach_key_pair([self.id], self.key_pair_name)

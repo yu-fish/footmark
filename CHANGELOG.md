@@ -1,5 +1,13 @@
 ## 1.2.0 (unreleased)
 
+## 1.1.14 (November 6, 2017)
+
+IMPROVEMENTS:
+
+  * foormark/ecs/connection: add key_name and userdata ([#48](https://github.com/alibaba/footmark/pull/48))
+  * foormark/ecs/connection: improve retry when delete instance ([#48](https://github.com/alibaba/footmark/pull/48))
+
+
 ## 1.1.13 (November 2, 2017)
 
 IMPROVEMENTS:

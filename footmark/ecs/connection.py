@@ -8,7 +8,7 @@ import warnings
 import six
 import time
 import json
-import logging
+import base64
 from footmark.ecs.config import *
 from footmark.connection import ACSQueryConnection
 from footmark.ecs.regioninfo import RegionInfo
@@ -19,7 +19,7 @@ from footmark.exception import ECSResponseError
 from functools import wraps
 from footmark.resultset import ResultSet
 from aliyunsdkcore.acs_exception.exceptions import ServerException
-# from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import t import
+# from aliyunsdkecs.request.v20140526.AttachKeyPairRequest import Request import
 # from aliyunsdkcore.auth.composer.rpc_signature_composer import ServerException
 # from aliyunsdkecs.request.v20140526.DescribeInstancesRequest import
 
@@ -309,7 +309,7 @@ class ECSConnection(ACSQueryConnection):
                 instance_ids = [instance_ids]
             for instance_id in instance_ids:
                 self.build_list_params(params, instance_id, 'InstanceId')
-                if self.delete_object_retry('DeleteInstance', params, delay=3, timeout=DefaultTimeOut):
+                if self.delete_instance_retry('DeleteInstance', params, instance_id, delay=3, timeout=DefaultTimeOut):
                     result.append(instance_id)
         return result
 
@@ -358,7 +358,8 @@ class ECSConnection(ACSQueryConnection):
                         host_name=None, password=None, io_optimized='optimized', system_disk_category=None, system_disk_size=None,
                         system_disk_name=None, system_disk_description=None, disks=None, vswitch_id=None, private_ip=None,
                         count=None, allocate_public_ip=None, instance_charge_type=None, period=None,
-                        auto_renew=None, auto_renew_period=None, instance_tags=None, client_token=None):
+                        auto_renew=None, auto_renew_period=None, instance_tags=None, client_token=None,
+                        key_pair_name=None, ram_role_name=None, user_data=None):
         """
         create an instance in ecs
 
@@ -572,17 +573,13 @@ class ECSConnection(ACSQueryConnection):
                         self.build_list_params(params, auto_renew, 'AutoRenew')
                         self.build_list_params(params, auto_renew_period, 'AutoRenewPeriod')
 
-        # Instance Tags
-        # tag_no = 1
-        # if instance_tags:
-        #     for key, value in instance_tags.items():
-        #         if key:
-        #             self.build_list_params(params, key, 'Tag' + str(tag_no) + 'Key')
-        #             self.build_list_params(params, value, 'Tag' + str(tag_no) + 'Value')
-        #             tag_no += 1
-        #         if tag_no > 5:
-        #             break
         self.build_tags_params(params, instance_tags, max_tag_number=5)
+
+        if key_pair_name:
+            self.build_list_params(params, key_pair_name, 'KeyPairName')
+
+        if user_data:
+            self.build_list_params(params, base64.b64encode(user_data), 'UserData')
 
         if allocate_public_ip and not max_bandwidth_out:
             raise ECSResponseError(error={"message":"The max_bandwidth_out of the specified instance cannot be "
@@ -611,6 +608,52 @@ class ECSConnection(ACSQueryConnection):
             instances.append(self.get_instance_details(instance_id))
 
         return instances
+
+    def attach_key_pair(self, instance_ids, key_pair_name):
+        """
+        Attach a key pair to a ecs instance
+
+        :type instance_ids: list
+        :param instance_ids: List of the instance ids
+
+        :type key_pair_name: str
+        :param key_pair_name: Name of Key Pair which is used to attach
+
+        :return:
+        """
+
+        params = {}
+        # Instance Id, which is to be added to a security group
+        self.build_list_params(params, instance_ids, 'InstanceIds')
+
+        # Security Group ID, an already existing security group, to which instance is added
+        self.build_list_params(params, key_pair_name, 'KeyPairName')
+
+        # Method Call, to perform adding action
+        return self.get_status('AttachKeyPair', params)
+
+    def detach_key_pair(self, instance_ids, key_pair_name):
+        """
+        Attach a key pair to a ecs instance
+
+        :type instance_ids: list
+        :param instance_ids: List of the instance ids
+
+        :type key_pair_name: str
+        :param key_pair_name: Name of Key Pair which is used to be detached
+
+        :return:
+        """
+
+        params = {}
+        # Instance Id, which is to be added to a security group
+        self.build_list_params(params, instance_ids, 'InstanceIds')
+
+        # Security Group ID, an already existing security group, to which instance is added
+        self.build_list_params(params, key_pair_name, 'KeyPairName')
+
+        # Method Call, to perform adding action
+        return self.get_status('DetachKeyPair', params)
 
     def modify_instances(self, instance_ids, name=None, description=None, host_name=None, password=None):
         """
@@ -643,9 +686,6 @@ class ECSConnection(ACSQueryConnection):
         for id in instance_ids:
             self.build_list_params(params, id, 'InstanceId')
             changed = self.get_status('ModifyInstanceAttribute', params)
-            # if password:
-            #     self.reboot_instances([id])
-            # results.append(id)
 
         return changed
 
@@ -699,10 +739,6 @@ class ECSConnection(ACSQueryConnection):
 
         :return: Success message, confirming joining security group or error message if any
         """
-        results = []
-        success_instance_ids = []
-        failed_instance_ids = []
-        changed = False
 
         params = {}
         # Instance Id, which is to be added to a security group
@@ -761,9 +797,6 @@ class ECSConnection(ACSQueryConnection):
         """
 
         params = {}
-        results = []
-        changed = False
-        security_group_id = None
 
         # Security Group Name
         self.build_list_params(params, group_name, 'SecurityGroupName')
@@ -1007,11 +1040,28 @@ class ECSConnection(ACSQueryConnection):
         """
         # Call DescribeSecurityGroups method to get response for all running instances
         params = {}
-        results = []
         if group_id:
             self.build_list_params(params, group_id, 'SecurityGroupId')
 
-        return self.get_status('DeleteSecurityGroup', params)
+        delay = 5
+        timeout = DefaultTimeOut
+        while True:
+            try:
+                self.get_status('DeleteSecurityGroup', params)
+                group = self.get_security_group_attribute(group_id=group_id)
+                if group is None or not group.id:
+                    return True
+            except ServerException as e:
+                if str(e.error_code) == "InvalidSecurityGroupId.NotFound":
+                    return True
+                elif str(e.error_code) == "DependencyViolation":
+                    pass
+
+            time.sleep(delay)
+            timeout -= delay
+            if timeout <= 0:
+                raise Exception("Timeout: Waiting for deleting Security Group {0}, time-consuming {1} seconds. "
+                                "Error: {2}".format(group_id, DefaultTimeOut-timeout, e))
 
     def create_disk(self, zone_id, disk_name=None, description=None,
                     disk_category=None, size=None, disk_tags=None,
@@ -1159,12 +1209,6 @@ class ECSConnection(ACSQueryConnection):
         :return: Return status of Operation
         """
         params = {}
-        changed = False
-        # region retrieve InstanceId from DiskId
-        # inst_id, _, disk_portable, results = self.retrieve_instance_for_disk(disk_id)
-        #
-        # if results or not disk_portable or instance_id != inst_id:
-        #     return changed
 
         # Instance Id, which is to be added to a detach disk
         self.build_list_params(params, instance_id, 'InstanceId')
@@ -1216,13 +1260,29 @@ class ECSConnection(ACSQueryConnection):
         :return: Return status of Operation
         """
         params = {}
-        results = []
-        changed = False
 
         # the disk to be deleted
         self.build_list_params(params, disk_id, 'DiskId')
 
-        return self.delete_object_retry('DeleteDisk', params, delay=3, timeout=DefaultTimeOut)
+        delay = 3
+        timeout = DefaultTimeOut
+
+        while True:
+            try:
+                self.get_status('DeleteDisk', params)
+                volume = self.get_volume_attribute(disk_id)
+                if volume is None or not volume.id:
+                    return True
+            except ServerException as e:
+                if str(e.error_code) == "InvalidDiskId.NotFound":
+                    return True
+                elif str(e.error_code) == "IncorrectInstanceStatus.Initializing":
+                    pass
+            time.sleep(delay)
+            timeout -= delay
+            if timeout <= 0:
+                raise Exception("Timeout: Waiting for deleting volume {0}, time-consuming {1} seconds. "
+                                "Error: {2}".format(disk_id, DefaultTimeOut, e))
 
     def modify_disk(self, disk_id, disk_name=None, description=None, delete_with_instance=None):
         """
@@ -1536,8 +1596,6 @@ class ECSConnection(ACSQueryConnection):
         :return: Return info about instance
         """
         params = {}
-        results = []
-        instance_details = None
 
         self.build_list_params(params, instance_id, 'InstanceId')
 
@@ -1585,27 +1643,22 @@ class ECSConnection(ACSQueryConnection):
         except Exception as e:
             raise e
 
-    def delete_object_retry(self, action, params, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
-        """
-        Using retry to deleting disk when disk is 'Initializing'
-        """
-        done = False
-        try:
-            while not done:
-                time.sleep(delay)
-                try:
-                    done = self.get_status(action, params)
-                except ServerException as e:
-                    if str(e.error_code) == "IncorrectInstanceStatus.Initializing":
-                        continue
+    def delete_instance_retry(self, action, params, instance_id, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
+        while True:
+            try:
+                self.get_status(action, params)
+                instance = self.get_instance_details(instance_id)
+                if instance is None or not instance.id:
+                    return True
+            except ServerException as e:
+                if str(e.error_code) == "InvalidInstanceId.NotFound":
+                    return True
 
-                timeout -= delay
-                if timeout <= 0:
-                    raise Exception("Timeout Error: Waiting for deleting, time-consuming %d seconds." % timeout)
-
-        except Exception as ex:
-            raise ex
-        return done
+            time.sleep(delay)
+            timeout -= delay
+            if timeout <= 0:
+                raise Exception("Timeout Error: Waiting for deleting instance {0}, time-consuming {1} seconds. "
+                                "Error: {2}".format(instance_id, DefaultTimeOut, e))
 
     def verify_join_remove_securitygrp(self, instance_id, group_id, mode, delay=DefaultWaitForInterval, timeout=DefaultTimeOut):
         """
